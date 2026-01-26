@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>İngilizce Öğrenme Asistanı</title>
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .container { border: 1px solid #ccc; padding: 20px; border-radius: 8px; }
+        button { padding: 10px 20px; cursor: pointer; background-color: #007bff; color: white; border: none; border-radius: 4px; }
+        button:hover { background-color: #0056b3; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>İngilizce Video Analiz</h1>
+        <p>Hoşgeldiniz! Bu arayüz API'yi test etmek içindir.</p>
+        
+        <div style="margin-bottom: 20px;">
+            <h3>1. Kullanıcı Oluştur</h3>
+            <input type="text" id="username" placeholder="Kullanıcı Adı" value="testuser">
+            <button onclick="createUser()">Oluştur</button>
+            <p id="userResult"></p>
+        </div>
+
+        <div>
+            <h3>2. İstatistikleri Gör</h3>
+            <button onclick="getStats()">İstatistikleri Getir</button>
+            <pre id="statsResult"></pre>
+        </div>
+    </div>
+
+    <script>
+        let currentUserId = null;
+
+        async function createUser() {
+            const username = document.getElementById('username').value;
+            const res = await fetch('/api/users', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username})
+            });
+            const data = await res.json();
+            currentUserId = data.user_id;
+            document.getElementById('userResult').innerText = 'Kullanıcı ID: ' + currentUserId;
+        }
+
+        async function getStats() {
+            if(!currentUserId) { alert('Önce kullanıcı oluşturun!'); return; }
+            const res = await fetch(`/api/stats?user_id=${currentUserId}`);
+            const data = await res.json();
+            document.getElementById('statsResult').innerText = JSON.stringify(data, null, 2);
+        }
+    </script>
+</body>
+</html>

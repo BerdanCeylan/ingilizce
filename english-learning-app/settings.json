@@ -1,0 +1,21 @@
+{
+    "search.exclude": {
+        "**/venv": true,
+        "**/__pycache__": true,
+        "**/*.db": true,
+        "**/*.mp4": true,
+        "**/*.wav": true,
+        "**/*.mp3": true
+    },
+    "files.watcherExclude": {
+        "**/venv/**": true,
+        "**/__pycache__/**": true,
+        "**/*.db": true,
+        "**/*.mp4": true,
+        "**/*.wav": true,
+        "**/*.mp3": true
+    },
+    "python.analysis.exclude": [
+        "**/venv/**"
+    ]
+}

@@ -1,0 +1,13 @@
+Flask
+flask-cors
+flask-socketio
+python-socketio
+python-engineio
+yt-dlp
+openai-whisper
+python-dotenv
+deep-translator
+requests
+nltk
+beautifulsoup4
+argostranslate

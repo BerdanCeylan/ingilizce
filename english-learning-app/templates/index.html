@@ -1,0 +1,2037 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Watch Together - Film İzle Beraber</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎬 Watch Together - Film İzle Beraber</h1>
+            <p>Arkadaşlarınızla beraber film izleyin, sohbet edin ve ekran paylaşın</p>
+        </header>
+
+        <main>
+            <!-- Login Section -->
+            <section id="loginSection" class="section active">
+                <div class="login-container">
+                    <div class="login-card">
+                        <div class="login-header">
+                            <h2>🎬 Hoş Geldiniz!</h2>
+                            <p>İngilizce öğrenme yolculuğunuza başlayın</p>
+                        </div>
+                        
+                        <form id="loginForm" class="login-form">
+                            <div class="form-field">
+                                <label for="username">
+                                    <span class="icon">👤</span>
+                                    Kullanıcı Adı
+                                </label>
+                                <input type="text" id="username" placeholder="Kullanıcı adınızı girin" autocomplete="username">
+                            </div>
+                            
+                            <div class="form-field">
+                                <label for="password">
+                                    <span class="icon">🔒</span>
+                                    Şifre
+                                </label>
+                                <input type="password" id="password" placeholder="Şifrenizi girin" autocomplete="current-password">
+                                <button type="button" class="password-toggle" id="passwordToggle" aria-label="Şifreyi göster/gizle">
+                                    👁️
+                                </button>
+                            </div>
+                            
+                            <div class="form-options">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="rememberMe">
+                                    <span>Beni Hatırla</span>
+                                </label>
+                                <a href="#" class="forgot-password">Şifremi Unuttum</a>
+                            </div>
+                            
+                            <div class="auth-buttons">
+                                <button type="button" id="loginBtn" class="btn btn-primary btn-large">
+                                    <span class="btn-icon">🚀</span>
+                                    Giriş Yap
+                                </button>
+                                <button type="button" id="registerBtn" class="btn btn-secondary btn-large">
+                                    <span class="btn-icon">✨</span>
+                                    Kayıt Ol
+                                </button>
+                            </div>
+                        </form>
+                        
+                        <div class="divider">
+                            <span>veya</span>
+                        </div>
+                        
+                        <div class="social-auth">
+                            <div id="googleBtnContainer" class="google-signin-container"></div>
+                            <p class="social-auth-note">Google hesabınızla hızlıca giriş yapın</p>
+                        </div>
+                        
+                        <div id="loginError" class="error-message" style="display: none;"></div>
+                        <div id="loginSuccess" class="success-message" style="display: none;"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Main App Section -->
+            <section id="appSection" class="section" style="display: none;">
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="rooms">🎬 Odalar</button>
+                    <button class="tab-btn" data-tab="watch">📺 Film İzle</button>
+                    <button class="tab-btn" data-tab="profile">👤 Profil</button>
+                </div>
+
+                <!-- Rooms Tab -->
+                <div id="roomsTab" class="tab-content active">
+                    <div class="card">
+                        <h2>Yeni Oda Oluştur</h2>
+                        <div class="form-group">
+                            <input type="text" id="roomName" placeholder="Oda adı" value="Benim Odası">
+                            <input type="text" id="videoUrl" placeholder="Video URL (YouTube)">
+                            <input type="text" id="videoTitle" placeholder="Video Başlığı">
+                            <button id="createRoomBtn" class="btn btn-primary">Oda Oluştur</button>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h2>Aktif Odalar</h2>
+                        <div id="roomsList" class="rooms-grid">
+                            <p>Odalar yükleniyor...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Watch Tab -->
+                <div id="watchTab" class="tab-content" style="display: none;">
+                    <!-- Series Selection Section -->
+                    <div class="card">
+                        <h2>📺 Dizi Seçimi</h2>
+                        <p style="color: #666; font-size: 0.9em; margin-bottom: 15px;">Bir veya birden fazla dizi seçin, kelime haritasını oluşturun ve bölümleri görüntüleyin</p>
+                        
+                        <div style="display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; margin-bottom: 20px;">
+                            <!-- Friends Poster -->
+                            <div class="series-card" data-series="friends" style="cursor: pointer; text-align: center; transition: transform 0.3s; position: relative; border: 2px solid transparent;">
+                                <label style="position: absolute; top: 10px; right: 10px; cursor: pointer; z-index: 10;">
+                                    <input type="checkbox" class="series-checkbox" data-series="friends" style="width: 20px; height: 20px; cursor: pointer;">
+                                </label>
+                                <div style="width: 150px; height: 225px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);">
+                                    <span style="font-size: 3em;">👫</span>
+                                </div>
+                                <h3 style="margin: 0; font-size: 1.1em;">Friends</h3>
+                                <p style="color: #666; font-size: 0.8em; margin: 5px 0 0;">1994-2004</p>
+                            </div>
+                            
+                            <!-- Big Bang Theory Poster -->
+                            <div class="series-card" data-series="bigbang" style="cursor: pointer; text-align: center; transition: transform 0.3s; position: relative; border: 2px solid transparent;">
+                                <label style="position: absolute; top: 10px; right: 10px; cursor: pointer; z-index: 10;">
+                                    <input type="checkbox" class="series-checkbox" data-series="bigbang" style="width: 20px; height: 20px; cursor: pointer;">
+                                </label>
+                                <div style="width: 150px; height: 225px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; box-shadow: 0 4px 15px rgba(245, 87, 108, 0.4);">
+                                    <span style="font-size: 3em;">🧠</span>
+                                </div>
+                                <h3 style="margin: 0; font-size: 1.1em;">Big Bang Theory</h3>
+                                <p style="color: #666; font-size: 0.8em; margin: 5px 0 0;">2007-2019</p>
+                            </div>
+                            
+                            <!-- Custom Series Container - will be populated dynamically -->
+                            <div id="customSeriesContainer" style="display: contents;"></div>
+                            
+                            <!-- Add New Series Card -->
+                            <div class="series-card add-new-series" onclick="openAddSeriesModal()" style="cursor: pointer; text-align: center; transition: transform 0.3s; position: relative; border: 2px dashed #cbd5e1;">
+                                <div style="width: 150px; height: 225px; background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; box-shadow: 0 4px 15px rgba(148, 163, 184, 0.2);">
+                                    <span style="font-size: 4em; color: #94a3b8;">+</span>
+                                </div>
+                                <h3 style="margin: 0; font-size: 1.1em; color: #64748b;">Yeni Ekle</h3>
+                                <p style="color: #94a3b8; font-size: 0.8em; margin: 5px 0 0;">YouTube / Video URL</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Build Word Map Button -->
+                        <div style="text-align: center; margin-bottom: 20px;">
+                            <button id="buildWordMapBtn" class="btn btn-primary btn-large" onclick="buildCombinedWordMap()" disabled>
+                                <span class="btn-icon">🗺️</span>
+                                Seçili Dizilerin Kelime Haritasını Oluştur
+                            </button>
+                            <p id="selectedSeriesText" style="margin-top: 10px; color: #666; font-size: 0.9em;"></p>
+                        </div>
+                        
+                        <!-- Word Map Status -->
+                        <div id="wordMapStatus" style="display: none; margin-top: 20px; padding: 15px; background: #f0fdf4; border-radius: 8px; border: 1px solid #86efac;">
+                            <div id="wordMapStatusText" style="color: #15803d;"></div>
+                        </div>
+                        
+                        <!-- Series Word Map Display -->
+                        <div id="seriesWordMap" style="display: none; margin-top: 20px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                                <h3 style="margin: 0;">📊 Kelime Haritası</h3>
+                                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                    <button id="translateAllWordsBtn" class="btn btn-secondary" onclick="translateAllWords()" title="Eksik çevirileri tamamla">
+                                        🔄 Eksik Çevirileri Tamamla
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Translation Stats -->
+                            <div id="translationStatsContainer" style="display: none; margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border-radius: 12px; border: 1px solid #7dd3fc;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                                    <div>
+                                        <h4 style="margin: 0 0 5px; color: #0369a1; font-size: 1em;">🌍 Çeviri Durumu</h4>
+                                        <p id="translationStatsText" style="margin: 0; color: #0c4a6e; font-size: 0.9em;">Yükleniyor...</p>
+                                    </div>
+                                    <div style="display: flex; gap: 15px; align-items: center;">
+                                        <div style="text-align: center;">
+                                            <div id="translatedWordsCount" style="font-size: 1.5em; font-weight: bold; color: #059669;">0</div>
+                                            <div style="font-size: 0.75em; color: #6b7280;">Çevrilmiş</div>
+                                        </div>
+                                        <div style="text-align: center;">
+                                            <div id="untranslatedWordsCount" style="font-size: 1.5em; font-weight: bold; color: #dc2626;">0</div>
+                                            <div style="font-size: 0.75em; color: #6b7280;">Çevrilmemiş</div>
+                                        </div>
+                                        <div style="width: 150px;">
+                                            <div style="background: #e5e7eb; height: 8px; border-radius: 4px; overflow: hidden;">
+                                                <div id="translationProgressBar" style="background: linear-gradient(90deg, #10b981, #059669); height: 100%; width: 0%; transition: width 0.3s;"></div>
+                                            </div>
+                                            <div id="translationPercentage" style="text-align: center; font-size: 0.75em; color: #6b7280; margin-top: 2px;">0%</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Translation Progress (shown during translation) -->
+                            <div id="translationProgress" style="display: none; margin-bottom: 20px; padding: 20px; background: #fef3c7; border-radius: 12px; border: 1px solid #fcd34d;">
+                                <div style="display: flex; align-items: center; gap: 15px;">
+                                    <div style="width: 30px; height: 30px; border: 3px solid #fcd34d; border-top-color: #f59e0b; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                                    <div>
+                                        <h4 style="margin: 0; color: #92400e;">🤖 AI Çeviri Yapılıyor...</h4>
+                                        <p id="translationProgressText" style="margin: 5px 0 0; color: #a16207; font-size: 0.9em;">Kelimeler çevriliyor, lütfen bekleyin...</p>
+                                    </div>
+                                </div>
+                                <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
+                            </div>
+                            
+                            <div id="seriesWordMapStats" class="word-stats-grid" style="margin-bottom: 20px;"></div>
+                            <div id="seriesWordMapLevels" class="levels-grid"></div>
+                        </div>
+                    </div>
+
+                    <!-- Episode Selection (Hidden by default) -->
+                    <div class="card" id="episodeSelectionCard" style="display: none;">
+                        <h2 id="selectedSeriesTitle">📺 Bölüm Seçimi</h2>
+                        
+                        <div style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
+                            <select id="seriesSeasonSelect" style="padding: 10px; border-radius: 8px; border: 1px solid #ddd; min-width: 150px;">
+                                <option value="">Sezon Seçin</option>
+                            </select>
+                            <select id="seriesEpisodeSelect" style="padding: 10px; border-radius: 8px; border: 1px solid #ddd; min-width: 200px;" disabled>
+                                <option value="">Önce Sezon Seçin</option>
+                            </select>
+                            <button id="loadEpisodeFlashcardsBtn" class="btn btn-primary" disabled>
+                                🧠 Flash Kartları Getir
+                            </button>
+                        </div>
+
+                        <!-- Episode Info -->
+                        <div id="episodeInfo" style="display: none; padding: 20px; background: #f8fafc; border-radius: 12px; margin-bottom: 20px;">
+                            <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px;">
+                                <div style="flex: 1; min-width: 200px;">
+                                    <h3 id="episodeTitle" style="margin: 0 0 10px;">Bölüm Başlığı</h3>
+                                    <p id="episodeDescription" style="color: #666; margin: 0;">Bölüm açıklaması buraya gelecek</p>
+                                </div>
+                                <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                                    <div style="text-align: center; padding: 10px 20px; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                                        <div id="episodeWordCount" style="font-size: 1.5em; font-weight: bold; color: #667eea;">0</div>
+                                        <div style="font-size: 0.8em; color: #666;">Kelime</div>
+                                    </div>
+                                    <div style="text-align: center; padding: 10px 20px; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                                        <div id="episodeFlashcardCount" style="font-size: 1.5em; font-weight: bold; color: #f5576c;">0</div>
+                                        <div style="font-size: 0.8em; color: #666;">Flash Kart</div>
+                                    </div>
+                                    <div style="text-align: center; padding: 15px 25px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-radius: 8px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); color: white;">
+                                        <div id="episodeKnownCount" style="font-size: 2em; font-weight: bold;">0</div>
+                                        <div style="font-size: 0.9em; opacity: 0.95;">✅ Bildiğim Kelimeler</div>
+                                    </div>
+                                    <div style="text-align: center; padding: 15px 25px; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); border-radius: 8px; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3); color: white;">
+                                        <div id="episodeUnknownCount" style="font-size: 2em; font-weight: bold;">0</div>
+                                        <div style="font-size: 0.9em; opacity: 0.95;">❌ Bilmediğim Kelimeler</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Level Statistics -->
+                            <div id="episodeLevelStats" style="display: none; margin-top: 20px; padding-top: 20px; border-top: 2px solid #e5e7eb;">
+                                <h4 style="margin: 0 0 15px; color: #374151; font-size: 1.1em;">📊 Seviye Dağılımı</h4>
+                                <div id="levelStatsContainer" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;">
+                                    <!-- Level stats will be inserted here -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Flashcards Section -->
+                        <div id="flashcardsSection" style="display: none;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                <h3 style="margin: 0;">🧠 Flash Kartlar</h3>
+                                <div style="display: flex; gap: 10px;">
+                                    <button id="shuffleFlashcardsBtn" class="btn btn-secondary">🔀 Karıştır</button>
+                                    <button id="startFlashcardsBtn" class="btn btn-success">▶️ Başlat</button>
+                                </div>
+                            </div>
+                            
+                            <!-- Flashcard Display - 3D Flip Card -->
+                            <div id="flashcardContainer" style="perspective: 1000px; margin-bottom: 20px;">
+                                <div id="flashcard" style="width: 100%; height: 280px; position: relative; cursor: pointer; transition: transform 0.6s; transform-style: preserve-3d;">
+                                    <!-- Front Side - English Word -->
+                                    <div id="flashcardFront" style="position: absolute; width: 100%; height: 100%; backface-visibility: hidden; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);">
+                                        <!-- Level Badge -->
+                                        <div id="flashcardLevelBadge" style="position: absolute; top: 15px; right: 15px; background: rgba(255, 255, 255, 0.3); padding: 6px 14px; border-radius: 20px; font-size: 0.75em; font-weight: 700; backdrop-filter: blur(10px); display: none; z-index: 10; border: 1px solid rgba(255, 255, 255, 0.3); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);"></div>
+                                        
+                                        <div id="flashcardWord" style="font-size: 2.5em; font-weight: bold; margin-bottom: 10px; text-align: center; padding: 0 20px;">Kelime</div>
+                                        <div id="flashcardPronunciation" style="font-size: 1em; opacity: 0.9;"></div>
+                                        <div id="flashcardFrequency" style="font-size: 0.85em; opacity: 0.7; margin-top: 15px;"></div>
+                                        <p style="font-size: 0.8em; opacity: 0.7; margin-top: 20px;">🔄 Türkçe anlamı için tıklayın</p>
+                                    </div>
+                                    
+                                    <!-- Back Side - Turkish Definition -->
+                                    <div id="flashcardBack" style="position: absolute; width: 100%; height: 100%; backface-visibility: hidden; transform: rotateY(180deg); background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; box-shadow: 0 10px 30px rgba(16, 185, 129, 0.3);">
+                                        <div style="font-size: 0.9em; opacity: 0.8; margin-bottom: 10px;">🇹🇷 Türkçe Anlamı</div>
+                                        <div id="flashcardDefinition" style="font-size: 2em; font-weight: bold; text-align: center; padding: 0 30px; line-height: 1.4;"></div>
+                                        <p style="font-size: 0.8em; opacity: 0.7; margin-top: 25px;">🔄 İngilizce kelime için tıklayın</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Flashcard Controls -->
+                            <div style="display: flex; justify-content: center; gap: 15px; margin-top: 20px;">
+                                <button id="prevFlashcardBtn" class="btn btn-secondary" disabled>◀ Önceki</button>
+                                <span id="flashcardCounter" style="display: flex; align-items: center; font-size: 1.1em; color: #666;">1 / 10</span>
+                                <button id="nextFlashcardBtn" class="btn btn-secondary" disabled>Sonraki ▶</button>
+                            </div>
+
+                            <!-- Mark as Known -->
+                            <div style="display: flex; justify-content: center; gap: 15px; margin-top: 20px;">
+                                <button id="markUnknownBtn" class="btn btn-danger" disabled>❌ Bilmiyorum</button>
+                                <button id="markKnownBtn" class="btn btn-success" disabled>✅ Biliyorum</button>
+                            </div>
+                        </div>
+
+                        <div id="noFlashcardsMessage" style="display: none; text-align: center; padding: 40px; color: #666;">
+                            <p style="font-size: 1.2em;">🎉 Tebrikler!</p>
+                            <p>Tüm kelimeleri öğrendiniz!</p>
+                        </div>
+                    </div>
+
+                    <!-- Bölüm Flashcard Çalışma Alanı (Ayrı Bölüm) -->
+                    <div class="card" style="margin-top: 30px; border: 2px solid #667eea; background: linear-gradient(135deg, #f8fafc 0%, #e0e7ff 100%);">
+                        <h2 style="margin-bottom: 20px; color: #667eea;">📚 Bölüm Flashcard Çalışma Alanı</h2>
+                        <p style="color: #666; font-size: 0.9em; margin-bottom: 20px;">Bir dizi seçin, sezon ve bölüm seçin, o bölüme ait kelimelerin flashcard'larına çalışın</p>
+                        
+                        <!-- Dizi Seçimi (Burada) -->
+                        <div style="display: flex; gap: 20px; margin-bottom: 25px; flex-wrap: wrap; justify-content: center;">
+                            <div class="series-card-flashcard" data-series="friends" style="cursor: pointer; text-align: center; transition: transform 0.3s; padding: 15px; border-radius: 12px; background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                                <div style="width: 120px; height: 180px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);">
+                                    <span style="font-size: 2.5em;">👫</span>
+                                </div>
+                                <h3 style="margin: 0; font-size: 1em;">Friends</h3>
+                                <p style="color: #666; font-size: 0.75em; margin: 5px 0 0;">1994-2004</p>
+                            </div>
+                            
+                            <div class="series-card-flashcard" data-series="bigbang" style="cursor: pointer; text-align: center; transition: transform 0.3s; padding: 15px; border-radius: 12px; background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                                <div style="width: 120px; height: 180px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; box-shadow: 0 4px 15px rgba(245, 87, 108, 0.4);">
+                                    <span style="font-size: 2.5em;">🧠</span>
+                                </div>
+                                <h3 style="margin: 0; font-size: 1em;">Big Bang Theory</h3>
+                                <p style="color: #666; font-size: 0.75em; margin: 5px 0 0;">2007-2019</p>
+                            </div>
+                            
+                            <!-- Custom Series Container for Flashcards -->
+                            <div id="customSeriesFlashcardContainer" style="display: contents;"></div>
+                        </div>
+                        
+                        <!-- Bölüm Seçimi (Burada) -->
+                        <div id="episodeSelectionCardFlashcard" style="display: none;">
+                            <h3 id="selectedSeriesTitleFlashcard" style="margin-bottom: 15px; color: #374151;">📺 Bölüm Seçimi</h3>
+                            
+                            <div style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
+                                <select id="seriesSeasonSelectFlashcard" style="padding: 10px; border-radius: 8px; border: 1px solid #ddd; min-width: 150px;">
+                                    <option value="">Sezon Seçin</option>
+                                </select>
+                                <select id="seriesEpisodeSelectFlashcard" style="padding: 10px; border-radius: 8px; border: 1px solid #ddd; min-width: 200px;" disabled>
+                                    <option value="">Önce Sezon Seçin</option>
+                                </select>
+                                <button id="loadEpisodeFlashcardsBtnFlashcard" class="btn btn-primary" disabled>
+                                    🧠 Flash Kartları Getir
+                                </button>
+                            </div>
+
+                            <!-- Episode Info -->
+                            <div id="episodeInfoFlashcard" style="display: none; padding: 20px; background: #fff; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                                <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px;">
+                                    <div style="flex: 1; min-width: 200px;">
+                                        <h3 id="episodeTitleFlashcard" style="margin: 0 0 10px;">Bölüm Başlığı</h3>
+                                    </div>
+                                    <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                                        <div style="text-align: center; padding: 10px 20px; background: #f8fafc; border-radius: 8px;">
+                                            <div id="episodeWordCountFlashcard" style="font-size: 1.5em; font-weight: bold; color: #667eea;">0</div>
+                                            <div style="font-size: 0.8em; color: #666;">Kelime</div>
+                                        </div>
+                                        <div style="text-align: center; padding: 15px 25px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-radius: 8px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); color: white;">
+                                            <div id="episodeKnownCountFlashcard" style="font-size: 2em; font-weight: bold;">0</div>
+                                            <div style="font-size: 0.9em; opacity: 0.95;">✅ Bildiğim</div>
+                                        </div>
+                                        <div style="text-align: center; padding: 15px 25px; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); border-radius: 8px; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3); color: white;">
+                                            <div id="episodeUnknownCountFlashcard" style="font-size: 2em; font-weight: bold;">0</div>
+                                            <div style="font-size: 0.9em; opacity: 0.95;">❌ Bilmediğim</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Level Statistics -->
+                                <div id="episodeLevelStatsFlashcard" style="display: none; margin-top: 20px; padding-top: 20px; border-top: 2px solid #e5e7eb;">
+                                    <h4 style="margin: 0 0 15px; color: #374151; font-size: 1.1em;">📊 Seviye Dağılımı</h4>
+                                    <div id="levelStatsContainerFlashcard" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;">
+                                        <!-- Level stats will be inserted here -->
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Flashcards Section -->
+                            <div id="flashcardsSectionFlashcard" style="display: none;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                    <h3 style="margin: 0;">🧠 Flash Kartlar</h3>
+                                    <div style="display: flex; gap: 10px;">
+                                        <button id="shuffleFlashcardsBtnFlashcard" class="btn btn-secondary">🔀 Karıştır</button>
+                                        <button id="startFlashcardsBtnFlashcard" class="btn btn-success">▶️ Başlat</button>
+                                    </div>
+                                </div>
+                                
+                                <!-- Flashcard Display - 3D Flip Card -->
+                                <div id="flashcardContainerFlashcard" style="perspective: 1000px; margin-bottom: 20px;">
+                                    <div id="flashcardFlashcard" style="width: 100%; height: 280px; position: relative; cursor: pointer; transition: transform 0.6s; transform-style: preserve-3d;">
+                                        <!-- Front Side - English Word -->
+                                        <div id="flashcardFrontFlashcard" style="position: absolute; width: 100%; height: 100%; backface-visibility: hidden; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);">
+                                            <!-- Level Badge -->
+                                            <div id="flashcardLevelBadgeFlashcard" style="position: absolute; top: 15px; right: 15px; background: rgba(255, 255, 255, 0.3); padding: 6px 14px; border-radius: 20px; font-size: 0.75em; font-weight: 700; backdrop-filter: blur(10px); display: none; z-index: 10; border: 1px solid rgba(255, 255, 255, 0.3); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);"></div>
+                                            
+                                            <div id="flashcardWordFlashcard" style="font-size: 2.5em; font-weight: bold; margin-bottom: 10px; text-align: center; padding: 0 20px;">Kelime</div>
+                                            <div id="flashcardPronunciationFlashcard" style="font-size: 1em; opacity: 0.9;"></div>
+                                            <div id="flashcardFrequencyFlashcard" style="font-size: 0.85em; opacity: 0.7; margin-top: 15px;"></div>
+                                            <p style="font-size: 0.8em; opacity: 0.7; margin-top: 20px;">🔄 Türkçe anlamı için tıklayın</p>
+                                        </div>
+                                        
+                                        <!-- Back Side - Turkish Definition -->
+                                        <div id="flashcardBackFlashcard" style="position: absolute; width: 100%; height: 100%; backface-visibility: hidden; transform: rotateY(180deg); background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; box-shadow: 0 10px 30px rgba(16, 185, 129, 0.3);">
+                                            <div style="font-size: 0.9em; opacity: 0.8; margin-bottom: 10px;">🇹🇷 Türkçe Anlamı</div>
+                                            <div id="flashcardDefinitionFlashcard" style="font-size: 2em; font-weight: bold; text-align: center; padding: 0 30px; line-height: 1.4;"></div>
+                                            <p style="font-size: 0.8em; opacity: 0.7; margin-top: 25px;">🔄 İngilizce kelime için tıklayın</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Flashcard Controls -->
+                                <div style="display: flex; justify-content: center; gap: 15px; margin-top: 20px;">
+                                    <button id="prevFlashcardBtnFlashcard" class="btn btn-secondary" disabled>◀ Önceki</button>
+                                    <span id="flashcardCounterFlashcard" style="display: flex; align-items: center; font-size: 1.1em; color: #666;">1 / 10</span>
+                                    <button id="nextFlashcardBtnFlashcard" class="btn btn-secondary" disabled>Sonraki ▶</button>
+                                </div>
+
+                                <!-- Mark as Known -->
+                                <div style="display: flex; justify-content: center; gap: 15px; margin-top: 20px;">
+                                    <button id="markUnknownBtnFlashcard" class="btn btn-danger" disabled>❌ Bilmiyorum</button>
+                                    <button id="markKnownBtnFlashcard" class="btn btn-success" disabled>✅ Biliyorum</button>
+                                </div>
+                            </div>
+
+                            <div id="noFlashcardsMessageFlashcard" style="display: none; text-align: center; padding: 40px; color: #666;">
+                                <p style="font-size: 1.2em;">🎉 Tebrikler!</p>
+                                <p>Tüm kelimeleri öğrendiniz!</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Video Player Section -->
+                    <div class="watch-container" style="display: none;" id="watchContainer">
+                        <div class="video-section">
+                            <div id="videoPlayer" class="video-player">
+                                <video id="videoElement" width="100%" height="100%" controls>
+                                    <source id="videoSource" type="video/mp4">
+                                </video>
+                                <div id="screenShareArea" style="display: none; background: #000; color: #fff; text-align: center; padding: 20px;">
+                                    Ekran Paylaşılan Kullanıcı
+                                </div>
+                            </div>
+                            <div class="room-info">
+                                <h3 id="currentRoomName">Oda Adı</h3>
+                                <p id="currentVideoTitle">Video: Seçilmemiş</p>
+                            </div>
+                        </div>
+
+                        <div class="sidebar">
+                            <div class="members-section">
+                                <h3>Katılımcılar</h3>
+                                <div id="membersList" class="members-list">
+                                    <p>Üyeler yükleniyor...</p>
+                                </div>
+                            </div>
+
+                            <div class="controls-section">
+                                <button id="screenShareBtn" class="btn btn-secondary">
+                                    📺 Ekran Paylaş
+                                </button>
+                                <button id="shareRoomBtn" class="btn btn-secondary">
+                                    🔗 Odayı Paylaş
+                                </button>
+                                <button id="leaveRoomBtn" class="btn btn-danger">
+                                    🚪 Odadan Ayrıl
+                                </button>
+                            </div>
+
+                            <div class="chat-section">
+                                <h3>Sohbet</h3>
+                                <div id="chatMessages" class="chat-messages">
+                                    <p>Sohbet yükleniyor...</p>
+                                </div>
+                                <div class="chat-input-group">
+                                    <input type="text" id="chatInput" placeholder="Mesajınızı yazın...">
+                                    <button id="sendChatBtn" class="btn btn-primary">Gönder</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="display: none;" id="noRoomSelected">
+                        <p>Lütfen önce bir oda seçin veya oluşturun.</p>
+                    </div>
+
+
+                    <div class="card">
+                        <h2>📊 Altyazı Veritabanı İstatistikleri</h2>
+                        <p style="color: #666; font-size: 0.9em; margin-bottom: 15px;">Oluşturulan altyazı veritabanlarının kelime istatistikleri</p>
+
+                        <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; align-items: center;">
+                            <select id="subtitleDbSeason" style="padding: 8px; border-radius: 4px; border: 1px solid #ddd;">
+                                <option value="">Tüm Klasörler</option>
+                                <option value="Friends1">Friends 1</option>
+                                <option value="Friends2">Friends 2</option>
+                                <option value="Friends3">Friends 3</option>
+                                <option value="Friends4">Friends 4</option>
+                                <option value="Friends5">Friends 5</option>
+                                <option value="Friends6">Friends 6</option>
+                                <option value="Friends7">Friends 7</option>
+                                <option value="Friends8">Friends 8</option>
+                                <option value="Friends9">Friends 9</option>
+                                <option value="Friends10">Friends 10</option>
+                            </select>
+                            <button id="loadSubtitleDbStatsBtn" class="btn btn-primary">📊 İstatistikleri Getir</button>
+                            <span id="subtitleDbStatsStatus" style="display: none; color: #666;">
+                                <span class="spinner"></span> Yükleniyor...
+                            </span>
+                        </div>
+
+                        <!-- Summary Stats -->
+                        <div id="subtitleDbStatsSummary" style="display: none; margin-bottom: 20px; padding: 15px; background: #f0fdf4; border-radius: 8px; border: 1px solid #86efac;">
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; text-align: center;">
+                                <div>
+                                    <div style="font-size: 1.5em; font-weight: bold; color: #15803d;" id="subtitleDbCount">0</div>
+                                    <div style="font-size: 0.8em; color: #6b7280;">Veritabanı</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 1.5em; font-weight: bold; color: #7c3aed;" id="subtitleDbUniqueWords">0</div>
+                                    <div style="font-size: 0.8em; color: #6b7280;">Benzersiz Kelime</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 1.5em; font-weight: bold; color: #0369a1;" id="subtitleDbTotalWords">0</div>
+                                    <div style="font-size: 0.8em; color: #6b7280;">Toplam Kelime</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Database List -->
+                        <div id="subtitleDbList" style="display: none; max-height: 400px; overflow-y: auto;">
+                            <table style="width: 100%; border-collapse: collapse; font-size: 0.85em;">
+                                <thead style="background: #f3f4f6;">
+                                    <tr>
+                                        <th style="padding: 10px; text-align: left; border-bottom: 2px solid #e5e7eb;">Veritabanı</th>
+                                        <th style="padding: 10px; text-align: right; border-bottom: 2px solid #e5e7eb;">Benzersiz</th>
+                                        <th style="padding: 10px; text-align: right; border-bottom: 2px solid #e5e7eb;">Toplam</th>
+                                        <th style="padding: 10px; text-align: center; border-bottom: 2px solid #e5e7eb;">İşlem</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="subtitleDbBody"></tbody>
+                            </table>
+                        </div>
+
+                        <div id="subtitleDbStatsError" style="display: none; margin-top: 15px; padding: 15px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; color: #dc2626;">
+                        </div>
+                    </div>
+                </div>
+
+                <div id="profileTab" class="tab-content" style="display: none;">
+                    <div class="card">
+                        <h2>Profil</h2>
+                        <p id="userInfo">Yükleniyor...</p>
+                        <div id="statsContent">
+                            <p>İstatistikler yükleniyor...</p>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h2>📊 Kelime Haritası</h2>
+                        <p>Öğrenme ilerlemenizi görselleştirilmiş olarak takip edin</p>
+                <div id="wordMapContainer" style="margin-top: 20px;">
+                            <div id="wordStats" class="word-stats-grid">
+                                <!-- İstatistikler buraya gelecek -->
+                            </div>
+                            
+                            <!-- Flashcard Study Button -->
+                            <div style="margin: 25px 0; text-align: center;">
+                                <button onclick="openFlashcardModal()" class="btn btn-primary" style="padding: 20px 40px; font-size: 1.2em; border-radius: 12px; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);">
+                                    🧠 Kartla Çalış
+                                </button>
+                                <p style="margin-top: 10px; color: #6b7280; font-size: 0.9em;">Tüm kelimelere, seviyelere veya zorlandığınız kelimelere çalışın</p>
+                            </div>
+                            
+                            <div id="wordCategoryMap" class="word-category-map" style="margin-top: 30px;">
+                                <!-- Kelime kategorileri haritası buraya gelecek -->
+                            </div>
+                        </div>
+                    </div>
+                        
+                    <div class="card">
+                        <h3>💾 Veri Yönetimi</h3>
+                        <p style="color: #666; font-size: 0.9em; margin-bottom: 15px;">Verilerinizi kaybetmemek için düzenli yedek alın.</p>
+                        <button id="backupBtn" class="btn btn-primary" style="margin-right: 10px;">⬇️ Yedeği İndir</button>
+                        <button id="restoreBtn" class="btn btn-secondary" onclick="document.getElementById('restoreFile').click()">⬆️ Yedeği Geri Yükle</button>
+                        <input type="file" id="restoreFile" accept=".db" style="display: none;">
+                    </div>
+
+                    <div class="card">
+                        <button id="logoutBtn" class="btn btn-danger">Çıkış Yap</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Add Series Modal -->
+        <div id="addSeriesModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center;">
+            <div class="modal-content" style="background: white; padding: 30px; border-radius: 16px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto; position: relative;">
+                <button onclick="closeAddSeriesModal()" style="position: absolute; top: 15px; right: 15px; background: none; border: none; font-size: 1.5em; cursor: pointer; color: #666;">&times;</button>
+                
+                <h2 style="margin-bottom: 20px; color: #374151;">🎬 Yeni Dizi/Film Ekle</h2>
+                <p style="color: #666; margin-bottom: 20px; font-size: 0.9em;">YouTube veya desteklenen video sitelerinden dizi/film ekleyin. Video indirilerek kelime analizi yapılacak ve sisteme eklenecektir.</p>
+                
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Dizi/Film Adı *</label>
+                    <input type="text" id="newSeriesName" placeholder="Örn: Game of Thrones, Breaking Bad..." style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 1em; box-sizing: border-box;">
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Video URL *</label>
+                    <input type="text" id="newSeriesUrl" placeholder="https://www.youtube.com/watch?v=..." style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 1em; box-sizing: border-box;">
+                    <p style="color: #9ca3af; font-size: 0.8em; margin-top: 5px;">YouTube, Vimeo veya diğer video siteleri desteklenir</p>
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 25px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Simge (Emoji)</label>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button type="button" class="emoji-btn" data-emoji="🎬" style="padding: 10px 15px; border: 2px solid #e5e7eb; border-radius: 8px; background: white; cursor: pointer; font-size: 1.2em;" onclick="selectEmoji('🎬')">🎬</button>
+                        <button type="button" class="emoji-btn" data-emoji="📺" style="padding: 10px 15px; border: 2px solid #e5e7eb; border-radius: 8px; background: white; cursor: pointer; font-size: 1.2em;" onclick="selectEmoji('📺')">📺</button>
+                        <button type="button" class="emoji-btn" data-emoji="🎥" style="padding: 10px 15px; border: 2px solid #e5e7eb; border-radius: 8px; background: white; cursor: pointer; font-size: 1.2em;" onclick="selectEmoji('🎥')">🎥</button>
+                        <button type="button" class="emoji-btn" data-emoji="🎭" style="padding: 10px 15px; border: 2px solid #e5e7eb; border-radius: 8px; background: white; cursor: pointer; font-size: 1.2em;" onclick="selectEmoji('🎭')">🎭</button>
+                        <button type="button" class="emoji-btn" data-emoji="🎪" style="padding: 10px 15px; border: 2px solid #e5e7eb; border-radius: 8px; background: white; cursor: pointer; font-size: 1.2em;" onclick="selectEmoji('🎪')">🎪</button>
+                        <button type="button" class="emoji-btn" data-emoji="🌟" style="padding: 10px 15px; border: 2px solid #e5e7eb; border-radius: 8px; background: white; cursor: pointer; font-size: 1.2em;" onclick="selectEmoji('🌟')">🌟</button>
+                        <button type="button" class="emoji-btn" data-emoji="👻" style="padding: 10px 15px; border: 2px solid #e5e7eb; border-radius: 8px; background: white; cursor: pointer; font-size: 1.2em;" onclick="selectEmoji('👻')">👻</button>
+                        <button type="button" class="emoji-btn" data-emoji="🚀" style="padding: 10px 15px; border: 2px solid #e5e7eb; border-radius: 8px; background: white; cursor: pointer; font-size: 1.2em;" onclick="selectEmoji('🚀')">🚀</button>
+                    </div>
+                    <input type="hidden" id="selectedEmoji" value="🎬">
+                </div>
+                
+                <div id="addSeriesStatus" style="display: none; margin-bottom: 20px; padding: 15px; background: #f3f4f6; border-radius: 8px; text-align: center;">
+                    <div class="spinner" style="margin: 0 auto 10px;"></div>
+                    <p id="addSeriesStatusText" style="margin: 0; color: #6b7280;">Video indiriliyor ve işleniyor...</p>
+                </div>
+                
+                <div id="addSeriesError" style="display: none; margin-bottom: 20px; padding: 15px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; color: #dc2626;"></div>
+                
+                <div id="addSeriesSuccess" style="display: none; margin-bottom: 20px; padding: 15px; background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; color: #15803d;"></div>
+                
+                <div style="display: flex; gap: 15px;">
+                    <button onclick="closeAddSeriesModal()" class="btn btn-secondary" style="flex: 1; padding: 12px;">İptal</button>
+                    <button onclick="addNewSeries()" id="addSeriesBtn" class="btn btn-primary" style="flex: 2; padding: 12px; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); border: none;">
+                        ➕ Ekle ve İşle
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>&copy; 2026 Watch Together | Film İzle Beraber</p>
+        </footer>
+    </div>
+
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        // Make Google Client ID available to JavaScript
+        window.GOOGLE_CLIENT_ID = "{{ google_client_id }}";
+    </script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script>
+        // İstatistikleri Getir Butonu İşlevselliği
+        document.addEventListener('DOMContentLoaded', () => {
+            const loadStatsBtn = document.getElementById('loadSubtitleDbStatsBtn');
+            if (loadStatsBtn) {
+                loadStatsBtn.addEventListener('click', async () => {
+                    const seasonSelect = document.getElementById('subtitleDbSeason');
+                    const statusSpan = document.getElementById('subtitleDbStatsStatus');
+                    const summaryDiv = document.getElementById('subtitleDbStatsSummary');
+                    const listDiv = document.getElementById('subtitleDbList');
+                    const tbody = document.getElementById('subtitleDbBody');
+                    const errorDiv = document.getElementById('subtitleDbStatsError');
+                    
+                    // UI Sıfırla
+                    statusSpan.style.display = 'inline';
+                    summaryDiv.style.display = 'none';
+                    listDiv.style.display = 'none';
+                    errorDiv.style.display = 'none';
+                    tbody.innerHTML = '';
+                    
+                    const path = seasonSelect.value;
+                    
+                    try {
+                        const response = await fetch(`/api/subtitles/stats?path=${encodeURIComponent(path)}`);
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            // Özeti Güncelle
+                            document.getElementById('subtitleDbCount').textContent = data.summary.total_databases;
+                            document.getElementById('subtitleDbUniqueWords').textContent = data.summary.total_unique_words.toLocaleString('tr-TR');
+                            document.getElementById('subtitleDbTotalWords').textContent = data.summary.total_words.toLocaleString('tr-TR');
+                            
+                            summaryDiv.style.display = 'block';
+                            
+                            // Tabloyu Güncelle
+                            if (data.databases && data.databases.length > 0) {
+                                data.databases.forEach(db => {
+                                    const row = document.createElement('tr');
+                                    row.innerHTML = `
+                                        <td style="padding: 10px; border-bottom: 1px solid #eee;">${db.name}</td>
+                                        <td style="padding: 10px; text-align: right; border-bottom: 1px solid #eee;">${db.unique_words.toLocaleString('tr-TR')}</td>
+                                        <td style="padding: 10px; text-align: right; border-bottom: 1px solid #eee;">${db.total_words.toLocaleString('tr-TR')}</td>
+                                        <td style="padding: 10px; text-align: center; border-bottom: 1px solid #eee;">
+                                            <button class="btn btn-sm btn-secondary" onclick="alert('Detay özelliği yakında eklenecek: ${db.name}')">Detay</button>
+                                        </td>
+                                    `;
+                                    tbody.appendChild(row);
+                                });
+                                listDiv.style.display = 'block';
+                            } else {
+                                errorDiv.textContent = 'Bu klasörde veritabanı bulunamadı.';
+                                errorDiv.style.display = 'block';
+                            }
+                        } else {
+                            errorDiv.textContent = data.error || 'Veriler alınırken bir hata oluştu.';
+                            errorDiv.style.display = 'block';
+                        }
+                    } catch (error) {
+                        console.error('Error fetching stats:', error);
+                        errorDiv.textContent = 'Sunucu hatası: ' + error.message;
+                        errorDiv.style.display = 'block';
+                    } finally {
+                        statusSpan.style.display = 'none';
+                    }
+                });
+            }
+        });
+
+        // Profil Kelime Haritası ve İstatistikleri
+        async function loadProfileWordMap() {
+            const userId = localStorage.getItem('user_id');
+            if (!userId) return;
+
+            const mapContainer = document.getElementById('wordCategoryMap');
+            const statsContainer = document.getElementById('wordStats');
+            
+            // Her zaman yükleniyor göster
+            if (mapContainer) {
+                mapContainer.innerHTML = '<div style="text-align:center; padding:20px;"><div class="spinner"></div><p>Veriler yükleniyor...</p></div>';
+            }
+
+            try {
+                // Önce profil API'sini dene (genel kelime haritası)
+                const response = await fetch(`/api/profile/word-map?user_id=${userId}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    renderWordStats(data.summary);
+                    if (data.levels && data.levels.length > 0) {
+                        renderLevels(data.levels, data.progress);
+                    } else {
+                        if (mapContainer) {
+                            mapContainer.innerHTML = '<div style="text-align:center; padding:20px; color:#666;"><p>Henüz kelime seviyesi oluşturulmamış.</p><p>Lütfen "Film İzle" sekmesinden bir dizi seçip "Kelime Haritası Oluştur" butonuna tıklayarak kelime havuzunu oluşturun.</p></div>';
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading word map:', error);
+                if (mapContainer) mapContainer.innerHTML = '<p style="color:red; text-align:center;">Veriler yüklenirken hata oluştu.</p>';
+            }
+        }
+
+        function renderWordStats(summary) {
+            const container = document.getElementById('wordStats');
+            if (!container) return;
+
+            const total = summary.total_words || 0;
+            const known = summary.known_words || 0;
+            const unknown = total - known;
+            const percentage = total > 0 ? Math.round((known / total) * 100) : 0;
+
+            container.innerHTML = `
+                <div class="stat-box">
+                    <div class="stat-box-number">${total.toLocaleString()}</div>
+                    <div class="stat-box-label">Toplam Kelime</div>
+                </div>
+                <div class="stat-box known">
+                    <div class="stat-box-number">${known.toLocaleString()}</div>
+                    <div class="stat-box-label">Bilinen</div>
+                    <div class="stat-box-percent">%${percentage}</div>
+                </div>
+                <div class="stat-box unknown">
+                    <div class="stat-box-number">${unknown.toLocaleString()}</div>
+                    <div class="stat-box-label">Öğrenilecek</div>
+                </div>
+            `;
+        }
+
+        function renderLevels(levels, progress) {
+            const container = document.getElementById('wordCategoryMap');
+            if (!container) return;
+
+            let html = '<div class="levels-grid">';
+            
+            levels.forEach(level => {
+                const known = progress[level.id] || 0;
+                const total = level.word_count;
+                const percent = total > 0 ? Math.round((known / total) * 100) : 0;
+                
+                let statusClass = 'low';
+                if (percent >= 80) statusClass = 'high';
+                else if (percent >= 40) statusClass = 'medium';
+
+                // Determine color variable for inline style
+                const colorVar = statusClass === 'high' ? 'var(--secondary)' : (statusClass === 'medium' ? 'var(--warning)' : 'var(--danger)');
+
+                html += `
+                    <div class="level-card">
+                        <div class="level-card-header">
+                            <div>
+                                <h3 class="level-card-title">${level.package_name}</h3>
+                                <div class="level-card-freq">Frekans: ${level.max_frequency} - ${level.min_frequency}</div>
+                            </div>
+                            <div class="level-card-percent ${statusClass}">%${percent}</div>
+                        </div>
+                        <div class="level-card-progress">
+                            <span>${known} / ${total} kelime</span>
+                        </div>
+                        <div class="level-card-bar">
+                            <div class="level-card-fill" style="width: ${percent}%; background-color: ${colorVar}"></div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        // Tab değişimi dinleyicisi
+        document.addEventListener('DOMContentLoaded', () => {
+            const profileBtn = document.querySelector('.tab-btn[data-tab="profile"]');
+            if (profileBtn) {
+                profileBtn.addEventListener('click', loadProfileWordMap);
+            }
+        });
+
+        // ===== SERİS SEÇİMİ VE EPİZOD FLASHCARD İŞLEVLERİ =====
+
+        // Dizi posterlerine tıklama (sadece poster alanına, butona değil)
+        document.querySelectorAll('.series-card').forEach(card => {
+            const button = card.querySelector('button');
+            const checkbox = card.querySelector('.series-checkbox');
+            
+            card.addEventListener('click', (e) => {
+                // Eğer butona, checkbox'a veya label'a tıklandıysa, selectSeries çağırma
+                if (e.target === button || button?.contains(e.target) || 
+                    e.target === checkbox || e.target.closest('label') ||
+                    e.target.type === 'checkbox') {
+                    return;
+                }
+                const series = card.dataset.series;
+                if (series) {
+                    selectSeries(series);
+                }
+            });
+            
+            // Hover efekti
+            card.addEventListener('mouseenter', () => {
+                card.style.transform = 'scale(1.05)';
+            });
+            card.addEventListener('mouseleave', () => {
+                card.style.transform = 'scale(1)';
+            });
+        });
+
+        // ===== BÖLÜM FLASHCARD ÇALIŞMA ALANI İŞLEVLERİ =====
+        
+        // Yeni flashcard alanı için dizi seçimi
+        document.querySelectorAll('.series-card-flashcard').forEach(card => {
+            card.addEventListener('click', () => {
+                const series = card.dataset.series;
+                selectSeriesForFlashcard(series);
+            });
+            
+            // Hover efekti
+            card.addEventListener('mouseenter', () => {
+                card.style.transform = 'scale(1.05)';
+            });
+            card.addEventListener('mouseleave', () => {
+                card.style.transform = 'scale(1)';
+            });
+        });
+
+        function selectSeriesForFlashcard(series) {
+            const episodeSelectionCard = document.getElementById('episodeSelectionCardFlashcard');
+            const seriesTitle = document.getElementById('selectedSeriesTitleFlashcard');
+            const seasonSelect = document.getElementById('seriesSeasonSelectFlashcard');
+            
+            episodeSelectionCard.style.display = 'block';
+            
+            // Başlık güncelle
+            if (series === 'friends') {
+                seriesTitle.textContent = '👫 Friends - Bölüm Seçimi';
+            } else {
+                seriesTitle.textContent = '🧠 Big Bang Theory - Bölüm Seçimi';
+            }
+
+            // Önce statik sezon listesini göster
+            let seasons = [];
+            if (series === 'friends') {
+                seasons = [
+                    { value: '1', label: 'Sezon 1 (24 bölüm)' },
+                    { value: '2', label: 'Sezon 2 (24 bölüm)' },
+                    { value: '3', label: 'Sezon 3 (25 bölüm)' },
+                    { value: '4', label: 'Sezon 4 (24 bölüm)' },
+                    { value: '5', label: 'Sezon 5 (24 bölüm)' },
+                    { value: '6', label: 'Sezon 6 (25 bölüm)' },
+                    { value: '7', label: 'Sezon 7 (24 bölüm)' },
+                    { value: '8', label: 'Sezon 8 (24 bölüm)' },
+                    { value: '9', label: 'Sezon 9 (24 bölüm)' },
+                    { value: '10', label: 'Sezon 10 (18 bölüm)' }
+                ];
+            } else {
+                seasons = [
+                    { value: '1', label: 'Sezon 1 (17 bölüm)' },
+                    { value: '2', label: 'Sezon 2 (23 bölüm)' },
+                    { value: '3', label: 'Sezon 3 (23 bölüm)' },
+                    { value: '4', label: 'Sezon 4 (24 bölüm)' },
+                    { value: '5', label: 'Sezon 5 (24 bölüm)' },
+                    { value: '6', label: 'Sezon 6 (24 bölüm)' },
+                    { value: '7', label: 'Sezon 7 (24 bölüm)' },
+                    { value: '8', label: 'Sezon 8 (24 bölüm)' },
+                    { value: '9', label: 'Sezon 9 (24 bölüm)' },
+                    { value: '10', label: 'Sezon 10 (24 bölüm)' },
+                    { value: '11', label: 'Sezon 11 (24 bölüm)' },
+                    { value: '12', label: 'Sezon 12 (24 bölüm)' }
+                ];
+            }
+            
+            // Statik sezon listesini hemen doldur
+            seasonSelect.innerHTML = '<option value="">Sezon Seçin</option>';
+            seasons.forEach(s => {
+                const option = document.createElement('option');
+                option.value = s.value;
+                option.textContent = s.label;
+                seasonSelect.appendChild(option);
+            });
+            
+            // Bölüm dropdown'ını sıfırla
+            const episodeSelect = document.getElementById('seriesEpisodeSelectFlashcard');
+            episodeSelect.innerHTML = '<option value="">Önce Sezon Seçin</option>';
+            episodeSelect.disabled = true;
+            
+            // Flashcard butonunu devre dışı bırak
+            document.getElementById('loadEpisodeFlashcardsBtnFlashcard').disabled = true;
+            document.getElementById('loadEpisodeFlashcardsBtnFlashcard').dataset.series = series;
+            
+            // Bölüm bilgisi ve flashcard alanlarını gizle
+            document.getElementById('episodeInfoFlashcard').style.display = 'none';
+            document.getElementById('flashcardsSectionFlashcard').style.display = 'none';
+            document.getElementById('noFlashcardsMessageFlashcard').style.display = 'none';
+            
+            // Scroll to episode selection
+            episodeSelectionCard.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Sezon seçimi değiştiğinde (yeni alan için)
+        document.getElementById('seriesSeasonSelectFlashcard').addEventListener('change', async function() {
+            const season = this.value;
+            const series = document.getElementById('loadEpisodeFlashcardsBtnFlashcard').dataset.series;
+            const episodeSelect = document.getElementById('seriesEpisodeSelectFlashcard');
+            
+            if (!season) {
+                episodeSelect.innerHTML = '<option value="">Önce Sezon Seçin</option>';
+                episodeSelect.disabled = true;
+                document.getElementById('loadEpisodeFlashcardsBtnFlashcard').disabled = true;
+                return;
+            }
+            
+            // Statik bölüm sayıları
+            let episodeCount = 24; // default
+            if (series === 'friends') {
+                const counts = { '1': 24, '2': 24, '3': 25, '4': 24, '5': 24, '6': 25, '7': 24, '8': 24, '9': 24, '10': 18 };
+                episodeCount = counts[season] || 24;
+            } else {
+                const counts = { '1': 17, '2': 23, '3': 23, '4': 24, '5': 24, '6': 24, '7': 24, '8': 24, '9': 24, '10': 24, '11': 24, '12': 24 };
+                episodeCount = counts[season] || 24;
+            }
+            
+            // Bölüm dropdown'ını doldur
+            episodeSelect.innerHTML = '<option value="">Bölüm Seçin</option>';
+            for (let ep = 1; ep <= episodeCount; ep++) {
+                const option = document.createElement('option');
+                option.value = ep;
+                option.textContent = `Bölüm ${ep}`;
+                episodeSelect.appendChild(option);
+            }
+            episodeSelect.disabled = false;
+        });
+
+        // Bölüm seçimi değiştiğinde (yeni alan için)
+        document.getElementById('seriesEpisodeSelectFlashcard').addEventListener('change', function() {
+            const episode = this.value;
+            const loadBtn = document.getElementById('loadEpisodeFlashcardsBtnFlashcard');
+            const series = document.getElementById('loadEpisodeFlashcardsBtnFlashcard').dataset.series;
+            const season = document.getElementById('seriesSeasonSelectFlashcard').value;
+            
+            if (episode) {
+                loadBtn.disabled = false;
+                loadBtn.dataset.series = series;
+                loadBtn.dataset.season = season;
+                loadBtn.dataset.episode = episode;
+            } else {
+                loadBtn.disabled = true;
+            }
+        });
+
+        // Flash Kartları Getir butonu (yeni alan için)
+        document.getElementById('loadEpisodeFlashcardsBtnFlashcard').addEventListener('click', async function() {
+            const series = this.dataset.series;
+            const season = parseInt(this.dataset.season);
+            const episode = parseInt(this.dataset.episode);
+            const customSeries = this.dataset.customSeries;
+            const customEpisode = this.dataset.customEpisode;
+            const userId = localStorage.getItem('user_id');
+
+            // Custom series için farklı kontrol
+            if (customSeries && customEpisode) {
+                try {
+                    let url = `/api/custom-series/${customSeries}/flashcards?episode=${encodeURIComponent(customEpisode)}`;
+                    if (window.currentUser && window.currentUser.user_id) {
+                        url += `&user_id=${window.currentUser.user_id}`;
+                    }
+                    const response = await fetch(url);
+                    const data = await response.json();
+
+                    if (data.success) {
+                        displayFlashcardsForNewArea(data);
+                    } else {
+                        alert('Flashcard yüklenirken hata: ' + (data.error || 'Bu bölüm için kelime bulunamadı'));
+                    }
+                } catch (error) {
+                    console.error('Error loading custom series flashcards:', error);
+                    alert('Flashcard yüklenirken hata: ' + error.message);
+                }
+                return;
+            }
+
+            // Normal series (Friends, Big Bang) için kontrol
+            if (!series || !season || !episode) {
+                alert('Lütfen sezon ve bölüm seçin!');
+                return;
+            }
+
+            try {
+                let url = `/api/series/${series}/episodes/${season}/${episode}/flashcards`;
+                if (window.currentUser && window.currentUser.user_id) {
+                    url += `?user_id=${window.currentUser.user_id}`;
+                }
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.success) {
+                    displayFlashcardsForNewArea(data);
+                } else {
+                    alert('Flashcard yüklenirken hata: ' + (data.error || 'Bu bölüm için kelime bulunamadı'));
+                }
+            } catch (error) {
+                console.error('Error loading flashcards:', error);
+                alert('Flashcard yüklenirken hata: ' + error.message);
+            }
+        });
+
+        // Yeni alan için flashcard görüntüleme fonksiyonu
+        function displayFlashcardsForNewArea(data) {
+            const episodeInfo = document.getElementById('episodeInfoFlashcard');
+            const flashcardsSection = document.getElementById('flashcardsSectionFlashcard');
+            const noFlashcardsMessage = document.getElementById('noFlashcardsMessageFlashcard');
+            
+            // Bölüm bilgilerini göster
+            const title = data.video ? data.video.title : (data.flashcards.length > 0 ? data.flashcards[0].word : "No words found");
+            document.getElementById('episodeTitleFlashcard').textContent = title;
+            document.getElementById('episodeWordCountFlashcard').textContent = data.flashcards.length;
+            
+            // Bildiğim ve bilmediğim kelime sayılarını göster
+            const knownCount = data.known_count !== undefined ? data.known_count : 0;
+            const unknownCount = data.unknown_count !== undefined ? data.unknown_count : data.flashcards.length;
+            document.getElementById('episodeKnownCountFlashcard').textContent = knownCount;
+            document.getElementById('episodeUnknownCountFlashcard').textContent = unknownCount;
+            
+            // Seviye istatistiklerini göster (tüm kelimeler için)
+            const levelStatsContainer = document.getElementById('levelStatsContainerFlashcard');
+            const episodeLevelStats = document.getElementById('episodeLevelStatsFlashcard');
+            
+            const statsToShow = data.level_stats_all || data.level_stats || {};
+            
+            if (statsToShow && Object.keys(statsToShow).length > 0) {
+                levelStatsContainer.innerHTML = '';
+                
+                const sortedLevels = Object.keys(statsToShow).sort((a, b) => {
+                    if (a === 'Seviye Dışı') return 1;
+                    if (b === 'Seviye Dışı') return -1;
+                    return parseInt(a) - parseInt(b);
+                });
+                
+                sortedLevels.forEach(levelKey => {
+                    const levelData = statsToShow[levelKey];
+                    const levelCard = document.createElement('div');
+                    levelCard.style.cssText = 'padding: 12px; background: #fff; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); border-left: 4px solid #667eea;';
+                    
+                    let borderColor = '#667eea';
+                    if (levelData.level_number !== null && levelData.level_number !== undefined) {
+                        const levelNum = parseInt(levelData.level_number);
+                        if (levelNum <= 3) {
+                            borderColor = '#ef4444';
+                        } else if (levelNum <= 6) {
+                            borderColor = '#f59e0b';
+                        } else if (levelNum <= 10) {
+                            borderColor = '#3b82f6';
+                        } else {
+                            borderColor = '#10b981';
+                        }
+                    } else {
+                        borderColor = '#9ca3af';
+                    }
+                    
+                    levelCard.style.borderLeftColor = borderColor;
+                    levelCard.innerHTML = `
+                        <div style="font-weight: 600; color: #374151; margin-bottom: 5px; font-size: 0.9em;">${levelData.level_name}</div>
+                        <div style="font-size: 1.5em; font-weight: bold; color: ${borderColor};">${levelData.word_count}</div>
+                        <div style="font-size: 0.75em; color: #6b7280; margin-top: 3px;">kelime</div>
+                    `;
+                    levelStatsContainer.appendChild(levelCard);
+                });
+                
+                episodeLevelStats.style.display = 'block';
+            } else {
+                episodeLevelStats.style.display = 'none';
+            }
+            
+            episodeInfo.style.display = 'block';
+            
+            if (data.flashcards.length === 0) {
+                flashcardsSection.style.display = 'none';
+                noFlashcardsMessage.style.display = 'block';
+                return;
+            }
+            
+            noFlashcardsMessage.style.display = 'none';
+            flashcardsSection.style.display = 'block';
+            
+            // Flashcard state'ini ayarla
+            window.currentFlashcardsFlashcard = data.flashcards;
+            window.currentFlashcardIndexFlashcard = 0;
+            window.flashcardFlippedFlashcard = false;
+            
+            updateFlashcardDisplayForNewArea();
+            updateFlashcardControlsForNewArea();
+        }
+
+        // Yeni alan için flashcard görünümünü güncelle
+        function updateFlashcardDisplayForNewArea() {
+            if (!window.currentFlashcardsFlashcard || window.currentFlashcardsFlashcard.length === 0) return;
+            
+            const card = window.currentFlashcardsFlashcard[window.currentFlashcardIndexFlashcard];
+            const flashcard = document.getElementById('flashcardFlashcard');
+            
+            if (!card || !flashcard) return;
+            
+            document.getElementById('flashcardWordFlashcard').textContent = card.word || 'Kelime';
+            document.getElementById('flashcardPronunciationFlashcard').textContent = card.pronunciation || '';
+            document.getElementById('flashcardDefinitionFlashcard').textContent = card.definition || '(Çeviri henüz eklenmemiş - Kelime Haritasından "Çevir" butonunu kullanın)';
+            document.getElementById('flashcardFrequencyFlashcard').textContent = card.frequency ? `Frekans: ${card.frequency}` : '';
+            
+            // Seviye bilgisini göster
+            const levelBadge = document.getElementById('flashcardLevelBadgeFlashcard');
+            if (!levelBadge) return;
+            
+            if (card.level_number !== null && card.level_number !== undefined && card.level_number !== 'Seviye Dışı') {
+                const levelNum = parseInt(card.level_number);
+                if (!isNaN(levelNum) && levelNum > 0) {
+                    levelBadge.textContent = `Seviye ${levelNum}`;
+                    levelBadge.style.display = 'block';
+                    levelBadge.style.visibility = 'visible';
+                    levelBadge.style.opacity = '1';
+                    
+                    if (levelNum <= 3) {
+                        levelBadge.style.background = 'rgba(239, 68, 68, 0.6)';
+                        levelBadge.style.color = '#fff';
+                    } else if (levelNum <= 6) {
+                        levelBadge.style.background = 'rgba(245, 158, 11, 0.6)';
+                        levelBadge.style.color = '#fff';
+                    } else if (levelNum <= 10) {
+                        levelBadge.style.background = 'rgba(59, 130, 246, 0.6)';
+                        levelBadge.style.color = '#fff';
+                    } else {
+                        levelBadge.style.background = 'rgba(16, 185, 129, 0.6)';
+                        levelBadge.style.color = '#fff';
+                    }
+                } else {
+                    levelBadge.style.display = 'none';
+                }
+            } else if (card.level_name && card.level_name !== 'Seviye Dışı' && card.level_name !== undefined) {
+                levelBadge.textContent = card.level_name;
+                levelBadge.style.display = 'block';
+                levelBadge.style.visibility = 'visible';
+                levelBadge.style.opacity = '1';
+                levelBadge.style.background = 'rgba(255, 255, 255, 0.5)';
+                levelBadge.style.color = '#fff';
+            } else {
+                levelBadge.textContent = 'Seviye Dışı';
+                levelBadge.style.display = 'block';
+                levelBadge.style.visibility = 'visible';
+                levelBadge.style.opacity = '1';
+                levelBadge.style.background = 'rgba(156, 163, 175, 0.5)';
+                levelBadge.style.color = '#fff';
+            }
+            
+            flashcard.style.transform = 'rotateY(0deg)';
+            window.flashcardFlippedFlashcard = false;
+        }
+
+        // Yeni alan için flashcard kontrollerini güncelle
+        function updateFlashcardControlsForNewArea() {
+            const total = window.currentFlashcardsFlashcard ? window.currentFlashcardsFlashcard.length : 0;
+            const current = window.currentFlashcardIndexFlashcard;
+            
+            document.getElementById('flashcardCounterFlashcard').textContent = `${current + 1} / ${total}`;
+            
+            const prevBtn = document.getElementById('prevFlashcardBtnFlashcard');
+            const nextBtn = document.getElementById('nextFlashcardBtnFlashcard');
+            const markKnownBtn = document.getElementById('markKnownBtnFlashcard');
+            const markUnknownBtn = document.getElementById('markUnknownBtnFlashcard');
+            
+            prevBtn.disabled = current === 0;
+            nextBtn.disabled = current === total - 1;
+            markKnownBtn.disabled = total === 0;
+            markUnknownBtn.disabled = total === 0;
+        }
+
+        // Kartı çevir (yeni alan için)
+        document.getElementById('flashcardFlashcard').addEventListener('click', function() {
+            const flashcard = document.getElementById('flashcardFlashcard');
+            flashcard.style.transform = window.flashcardFlippedFlashcard ? 'rotateY(0deg)' : 'rotateY(180deg)';
+            window.flashcardFlippedFlashcard = !window.flashcardFlippedFlashcard;
+        });
+
+        // Önceki/Sonraki kart (yeni alan için)
+        document.getElementById('prevFlashcardBtnFlashcard').addEventListener('click', () => {
+            if (window.currentFlashcardIndexFlashcard > 0) {
+                window.currentFlashcardIndexFlashcard--;
+                updateFlashcardDisplayForNewArea();
+                updateFlashcardControlsForNewArea();
+            }
+        });
+
+        document.getElementById('nextFlashcardBtnFlashcard').addEventListener('click', () => {
+            if (window.currentFlashcardsFlashcard && window.currentFlashcardIndexFlashcard < window.currentFlashcardsFlashcard.length - 1) {
+                window.currentFlashcardIndexFlashcard++;
+                updateFlashcardDisplayForNewArea();
+                updateFlashcardControlsForNewArea();
+            }
+        });
+
+        // Karıştır (yeni alan için)
+        document.getElementById('shuffleFlashcardsBtnFlashcard').addEventListener('click', () => {
+            if (!window.currentFlashcardsFlashcard) return;
+            
+            for (let i = window.currentFlashcardsFlashcard.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [window.currentFlashcardsFlashcard[i], window.currentFlashcardsFlashcard[j]] = 
+                [window.currentFlashcardsFlashcard[j], window.currentFlashcardsFlashcard[i]];
+            }
+            
+            window.currentFlashcardIndexFlashcard = 0;
+            updateFlashcardDisplayForNewArea();
+            updateFlashcardControlsForNewArea();
+        });
+
+        // Başlat (yeni alan için)
+        document.getElementById('startFlashcardsBtnFlashcard').addEventListener('click', () => {
+            window.currentFlashcardIndexFlashcard = 0;
+            updateFlashcardDisplayForNewArea();
+            updateFlashcardControlsForNewArea();
+        });
+
+        // Bilmiyorum/Biliyorum butonları (yeni alan için)
+        document.getElementById('markKnownBtnFlashcard').addEventListener('click', async () => {
+            await markFlashcardForNewArea(true);
+        });
+
+        document.getElementById('markUnknownBtnFlashcard').addEventListener('click', async () => {
+            await markFlashcardForNewArea(false);
+        });
+
+        async function markFlashcardForNewArea(known) {
+            if (!window.currentUser || !window.currentUser.user_id) {
+                alert('Lütfen önce giriş yapın!');
+                return;
+            }
+            
+            if (!window.currentFlashcardsFlashcard || window.currentFlashcardsFlashcard.length === 0) return;
+            
+            const card = window.currentFlashcardsFlashcard[window.currentFlashcardIndexFlashcard];
+            
+            try {
+                const response = await fetch(`/api/words/${card.id}/mark`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: window.currentUser.user_id, known: known })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    window.currentFlashcardsFlashcard.splice(window.currentFlashcardIndexFlashcard, 1);
+                    
+                    if (window.currentFlashcardsFlashcard.length === 0) {
+                        document.getElementById('flashcardsSectionFlashcard').style.display = 'none';
+                        document.getElementById('noFlashcardsMessageFlashcard').style.display = 'block';
+                        document.getElementById('episodeUnknownCountFlashcard').textContent = '0';
+                        const knownCount = parseInt(document.getElementById('episodeKnownCountFlashcard').textContent) + 1;
+                        document.getElementById('episodeKnownCountFlashcard').textContent = knownCount;
+                    } else {
+                        if (window.currentFlashcardIndexFlashcard >= window.currentFlashcardsFlashcard.length) {
+                            window.currentFlashcardIndexFlashcard = window.currentFlashcardsFlashcard.length - 1;
+                        }
+                        updateFlashcardDisplayForNewArea();
+                        updateFlashcardControlsForNewArea();
+                        
+                        if (known) {
+                            const knownCount = parseInt(document.getElementById('episodeKnownCountFlashcard').textContent) + 1;
+                            const unknownCount = parseInt(document.getElementById('episodeUnknownCountFlashcard').textContent) - 1;
+                            document.getElementById('episodeKnownCountFlashcard').textContent = knownCount;
+                            document.getElementById('episodeUnknownCountFlashcard').textContent = Math.max(0, unknownCount);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error marking word:', error);
+            }
+        }
+
+        // Checkbox değişikliklerini dinle
+        document.querySelectorAll('.series-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                updateBuildButton();
+                updateSelectedSeriesText();
+                updateCardBorder(this);
+            });
+        });
+
+        // Kart border'ını güncelle
+        function updateCardBorder(checkbox) {
+            const card = checkbox.closest('.series-card');
+            if (checkbox.checked) {
+                card.style.borderColor = '#667eea';
+                card.style.boxShadow = '0 4px 15px rgba(102, 126, 234, 0.6)';
+            } else {
+                card.style.borderColor = 'transparent';
+                card.style.boxShadow = '';
+            }
+        }
+
+        // Seçili dizileri güncelle
+        function updateSelectedSeriesText() {
+            const selected = getSelectedSeries();
+            const textDiv = document.getElementById('selectedSeriesText');
+            
+            if (selected.length === 0) {
+                textDiv.textContent = 'Lütfen en az bir dizi seçin';
+            } else {
+                const seriesNames = selected.map(s => s === 'friends' ? 'Friends' : 'Big Bang Theory');
+                textDiv.textContent = `Seçili: ${seriesNames.join(', ')}`;
+            }
+        }
+
+        // Build butonunu güncelle
+        function updateBuildButton() {
+            const selected = getSelectedSeries();
+            const buildBtn = document.getElementById('buildWordMapBtn');
+            buildBtn.disabled = selected.length === 0;
+        }
+
+        // Seçili dizileri al
+        function getSelectedSeries() {
+            const checkboxes = document.querySelectorAll('.series-checkbox:checked');
+            return Array.from(checkboxes).map(cb => cb.dataset.series);
+        }
+
+        // Birleşik Kelime Haritası Oluştur fonksiyonu
+        async function buildCombinedWordMap() {
+            const selected = getSelectedSeries();
+            
+            if (selected.length === 0) {
+                alert('Lütfen en az bir dizi seçin!');
+                return;
+            }
+            
+            const statusDiv = document.getElementById('wordMapStatus');
+            const statusText = document.getElementById('wordMapStatusText');
+            const wordMapDiv = document.getElementById('seriesWordMap');
+            
+            statusDiv.style.display = 'block';
+            statusText.innerHTML = '<span class="spinner"></span> Kelime haritası oluşturuluyor ve tüm kelimeler otomatik çevriliyor... Bu işlem birkaç dakika sürebilir.';
+            wordMapDiv.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/series/build-word-map', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ series: selected })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    let message = `✅ Kelime haritası oluşturuldu: ${data.unique_words} kelime, ${data.packages_created} seviye`;
+                    if (data.translated_count && data.translated_count > 0) {
+                        message += `<br>🤖 <strong>${data.translated_count}</strong> kelime otomatik olarak Türkçeye çevrildi!`;
+                    }
+                    statusText.innerHTML = message;
+                    statusText.style.color = '#15803d';
+                    
+                    // Kelime haritasını yükle
+                    await loadCombinedWordMap();
+                } else {
+                    statusText.innerHTML = `❌ Hata: ${data.error || 'Bilinmeyen hata'}`;
+                    statusText.style.color = '#dc2626';
+                }
+            } catch (error) {
+                console.error('Error building word map:', error);
+                statusText.innerHTML = `❌ Hata: ${error.message}`;
+                statusText.style.color = '#dc2626';
+            }
+        }
+
+        // Birleşik kelime haritasını yükle (profil API'sini kullan)
+        async function loadCombinedWordMap() {
+            const userId = localStorage.getItem('user_id');
+            const wordMapDiv = document.getElementById('seriesWordMap');
+            const statsDiv = document.getElementById('seriesWordMapStats');
+            const levelsDiv = document.getElementById('seriesWordMapLevels');
+            
+            try {
+                let url = `/api/profile/word-map`;
+                if (userId) {
+                    url += `?user_id=${userId}`;
+                }
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.success) {
+                    // İstatistikleri göster
+                    const summary = data.summary;
+                    statsDiv.innerHTML = `
+                        <div class="stat-box">
+                            <div class="stat-box-number">${summary.total_words.toLocaleString()}</div>
+                            <div class="stat-box-label">Toplam Kelime</div>
+                        </div>
+                        <div class="stat-box known">
+                            <div class="stat-box-number">${summary.known_words.toLocaleString()}</div>
+                            <div class="stat-box-label">Bilinen</div>
+                            <div class="stat-box-percent">%${Math.round((summary.known_words / summary.total_words) * 100) || 0}</div>
+                        </div>
+                        <div class="stat-box unknown">
+                            <div class="stat-box-number">${(summary.total_words - summary.known_words).toLocaleString()}</div>
+                            <div class="stat-box-label">Öğrenilecek</div>
+                        </div>
+                    `;
+                    
+                    // Seviyeleri göster
+                    if (data.levels && data.levels.length > 0) {
+                        let levelsHtml = '';
+                        data.levels.forEach(level => {
+                            const known = data.progress[level.id] || 0;
+                            const total = level.word_count;
+                            const percent = total > 0 ? Math.round((known / total) * 100) : 0;
+                            
+                            let statusClass = 'low';
+                            if (percent >= 80) statusClass = 'high';
+                            else if (percent >= 40) statusClass = 'medium';
+                            
+                            const colorVar = statusClass === 'high' ? 'var(--secondary)' : (statusClass === 'medium' ? 'var(--warning)' : 'var(--danger)');
+                            
+                            levelsHtml += `
+                                <div class="level-card">
+                                    <div class="level-card-header">
+                                        <div>
+                                            <h3 class="level-card-title">${level.package_name}</h3>
+                                            <div class="level-card-freq">Frekans: ${level.max_frequency} - ${level.min_frequency}</div>
+                                        </div>
+                                        <div class="level-card-percent ${statusClass}">%${percent}</div>
+                                    </div>
+                                    <div class="level-card-progress">
+                                        <span>${known} / ${total} kelime</span>
+                                    </div>
+                                    <div class="level-card-bar">
+                                        <div class="level-card-fill" style="width: ${percent}%; background-color: ${colorVar}"></div>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        levelsDiv.innerHTML = levelsHtml;
+                    }
+                    
+                    wordMapDiv.style.display = 'block';
+                    
+                    // Çeviri istatistiklerini yükle
+                    if (typeof loadTranslationStats === 'function') {
+                        loadTranslationStats();
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading word map:', error);
+            }
+        }
+
+        function selectSeries(series) {
+            const episodeSelectionCard = document.getElementById('episodeSelectionCard');
+            const seriesTitle = document.getElementById('selectedSeriesTitle');
+            const seasonSelect = document.getElementById('seriesSeasonSelect');
+            
+            episodeSelectionCard.style.display = 'block';
+            
+            // Başlık güncelle
+            if (series === 'friends') {
+                seriesTitle.textContent = '👫 Friends - Bölüm Seçimi';
+            } else {
+                seriesTitle.textContent = '🧠 Big Bang Theory - Bölüm Seçimi';
+            }
+
+            // Önce statik sezon listesini göster
+            let seasons = [];
+            if (series === 'friends') {
+                seasons = [
+                    { value: '1', label: 'Sezon 1 (24 bölüm)' },
+                    { value: '2', label: 'Sezon 2 (24 bölüm)' },
+                    { value: '3', label: 'Sezon 3 (25 bölüm)' },
+                    { value: '4', label: 'Sezon 4 (24 bölüm)' },
+                    { value: '5', label: 'Sezon 5 (24 bölüm)' },
+                    { value: '6', label: 'Sezon 6 (25 bölüm)' },
+                    { value: '7', label: 'Sezon 7 (24 bölüm)' },
+                    { value: '8', label: 'Sezon 8 (24 bölüm)' },
+                    { value: '9', label: 'Sezon 9 (24 bölüm)' },
+                    { value: '10', label: 'Sezon 10 (18 bölüm)' }
+                ];
+            } else {
+                seasons = [
+                    { value: '1', label: 'Sezon 1 (17 bölüm)' },
+                    { value: '2', label: 'Sezon 2 (23 bölüm)' },
+                    { value: '3', label: 'Sezon 3 (23 bölüm)' },
+                    { value: '4', label: 'Sezon 4 (24 bölüm)' },
+                    { value: '5', label: 'Sezon 5 (24 bölüm)' },
+                    { value: '6', label: 'Sezon 6 (24 bölüm)' },
+                    { value: '7', label: 'Sezon 7 (24 bölüm)' },
+                    { value: '8', label: 'Sezon 8 (24 bölüm)' },
+                    { value: '9', label: 'Sezon 9 (24 bölüm)' },
+                    { value: '10', label: 'Sezon 10 (24 bölüm)' },
+                    { value: '11', label: 'Sezon 11 (24 bölüm)' },
+                    { value: '12', label: 'Sezon 12 (24 bölüm)' }
+                ];
+            }
+            
+            // Statik sezon listesini hemen doldur
+            seasonSelect.innerHTML = '<option value="">Sezon Seçin</option>';
+            seasons.forEach(s => {
+                const option = document.createElement('option');
+                option.value = s.value;
+                option.textContent = s.label;
+                seasonSelect.appendChild(option);
+            });
+            
+            // Bölüm dropdown'ını sıfırla
+            const episodeSelect = document.getElementById('seriesEpisodeSelect');
+            episodeSelect.innerHTML = '<option value="">Önce Sezon Seçin</option>';
+            episodeSelect.disabled = true;
+            
+            // Flashcard butonunu devre dışı bırak
+            document.getElementById('loadEpisodeFlashcardsBtn').disabled = true;
+            document.getElementById('loadEpisodeFlashcardsBtn').dataset.series = series;
+            
+            // Bölüm bilgisi ve flashcard alanlarını gizle
+            document.getElementById('episodeInfo').style.display = 'none';
+            document.getElementById('flashcardsSection').style.display = 'none';
+            document.getElementById('noFlashcardsMessage').style.display = 'none';
+            
+            // Scroll to episode selection
+            episodeSelectionCard.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Sezon seçimi değiştiğinde
+        document.getElementById('seriesSeasonSelect').addEventListener('change', async function() {
+            const season = this.value;
+            const series = document.getElementById('loadEpisodeFlashcardsBtn').dataset.series;
+            const episodeSelect = document.getElementById('seriesEpisodeSelect');
+            
+            if (!season) {
+                episodeSelect.innerHTML = '<option value="">Önce Sezon Seçin</option>';
+                episodeSelect.disabled = true;
+                document.getElementById('loadEpisodeFlashcardsBtn').disabled = true;
+                return;
+            }
+            
+            // Statik bölüm sayıları
+            let episodeCount = 24; // default
+            if (series === 'friends') {
+                const counts = { '1': 24, '2': 24, '3': 25, '4': 24, '5': 24, '6': 25, '7': 24, '8': 24, '9': 24, '10': 18 };
+                episodeCount = counts[season] || 24;
+            } else {
+                const counts = { '1': 17, '2': 23, '3': 23, '4': 24, '5': 24, '6': 24, '7': 24, '8': 24, '9': 24, '10': 24, '11': 24, '12': 24 };
+                episodeCount = counts[season] || 24;
+            }
+            
+            // Bölüm dropdown'ını doldur
+            episodeSelect.innerHTML = '<option value="">Bölüm Seçin</option>';
+            for (let ep = 1; ep <= episodeCount; ep++) {
+                const option = document.createElement('option');
+                option.value = ep;
+                option.textContent = `Bölüm ${ep}`;
+                episodeSelect.appendChild(option);
+            }
+            episodeSelect.disabled = false;
+        });
+
+        // Bölüm seçimi değiştiğinde
+        document.getElementById('seriesEpisodeSelect').addEventListener('change', function() {
+            const episode = this.value;
+            const loadBtn = document.getElementById('loadEpisodeFlashcardsBtn');
+            const series = document.getElementById('loadEpisodeFlashcardsBtn').dataset.series;
+            const season = document.getElementById('seriesSeasonSelect').value;
+            
+            if (episode) {
+                loadBtn.disabled = false;
+                loadBtn.dataset.series = series;
+                loadBtn.dataset.season = season;
+                loadBtn.dataset.episode = episode;
+            } else {
+                loadBtn.disabled = true;
+            }
+        });
+
+        // Flash Kartları Getir butonu - Veritabanından flash kartları göster
+        document.getElementById('loadEpisodeFlashcardsBtn').addEventListener('click', async function() {
+            const series = this.dataset.series;
+            const season = parseInt(this.dataset.season);
+            const episode = parseInt(this.dataset.episode);
+            const userId = localStorage.getItem('user_id');
+
+            if (!series || !season || !episode) {
+                alert('Lütfen sezon ve bölüm seçin!');
+                return;
+            }
+
+            try {
+                // Veritabanından flash kartları getir (.db dosyasından)
+                // Kullanıcı ID'sini ekle (eğer giriş yapılmışsa)
+                let url = `/api/series/${series}/episodes/${season}/${episode}/flashcards`;
+                if (window.currentUser && window.currentUser.user_id) {
+                    url += `?user_id=${window.currentUser.user_id}`;
+                }
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.success) {
+                    displayFlashcards(data);
+                } else {
+                    alert('Flashcard yüklenirken hata: ' + (data.error || 'Bu bölüm için kelime bulunamadı'));
+                }
+            } catch (error) {
+                console.error('Error loading flashcards:', error);
+                alert('Flashcard yüklenirken hata: ' + error.message);
+            }
+        });
+
+        // Find episode file name based on series, season, and episode
+        async function findEpisodeFile(series, season, episode) {
+            try {
+                // Get list of subtitle files
+                const response = await fetch('/api/subtitles/list');
+                const data = await response.json();
+
+                if (!data.success) return null;
+
+                let folderName;
+                let pattern;
+
+                if (series === 'friends') {
+                    folderName = 'friends_db';
+                    // Files are named like: Friends - [7x01] - The One with Monica's Thunder.db
+                    pattern = new RegExp(`${season}x${episode.toString().padStart(2, '0')}`, 'i');
+                } else if (series === 'bigbang') {
+                    folderName = 'BigBangTheory';
+                    // Files are named like: series-1-episode-1-pilot-episode.txt
+                    pattern = new RegExp(`series-${season}-episode-${episode}`, 'i');
+                } else {
+                    return null;
+                }
+
+                // Find files in the correct folder
+                for (const file of data.files) {
+                    if (file.season === folderName && pattern.test(file.name)) {
+                        return file.name;
+                    }
+                }
+
+                return null;
+            } catch (error) {
+                console.error('Error finding episode file:', error);
+                return null;
+            }
+        }
+
+        async function loadFlashcards(videoId, userId) {
+            try {
+                const response = await fetch(`/api/episodes/${videoId}/flashcards?user_id=${userId || ''}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayFlashcards(data);
+                } else {
+                    alert('Flashcard yüklenirken hata: ' + (data.error || 'Bilinmeyen hata'));
+                }
+            } catch (error) {
+                console.error('Error loading flashcards:', error);
+                alert('Flashcard yüklenirken hata: ' + error.message);
+            }
+        }
+
+        // Flashcard'ları görüntüle
+        function displayFlashcards(data) {
+            const episodeInfo = document.getElementById('episodeInfo');
+            const flashcardsSection = document.getElementById('flashcardsSection');
+            const noFlashcardsMessage = document.getElementById('noFlashcardsMessage');
+            
+            // Bölüm bilgilerini göster
+            const title = data.video ? data.video.title : (data.flashcards.length > 0 ? data.flashcards[0].word : "No words found");
+            document.getElementById('episodeTitle').textContent = title;
+            document.getElementById('episodeWordCount').textContent = data.flashcards.length;
+            document.getElementById('episodeFlashcardCount').textContent = data.flashcards.length;
+            
+            // Bildiğim ve bilmediğim kelime sayılarını göster
+            const knownCount = data.known_count !== undefined ? data.known_count : 0;
+            const unknownCount = data.unknown_count !== undefined ? data.unknown_count : data.flashcards.length;
+            document.getElementById('episodeKnownCount').textContent = knownCount;
+            document.getElementById('episodeUnknownCount').textContent = unknownCount;
+            
+            
+            // Seviye istatistiklerini göster (tüm kelimeler için)
+            const levelStatsContainer = document.getElementById('levelStatsContainer');
+            const episodeLevelStats = document.getElementById('episodeLevelStats');
+            
+            // level_stats_all kullan (tüm kelimeler için, seviye dışı dahil)
+            const statsToShow = data.level_stats_all || data.level_stats || {};
+            
+            if (statsToShow && Object.keys(statsToShow).length > 0) {
+                levelStatsContainer.innerHTML = '';
+                
+                // Seviyeleri sıralı göster (sayısal seviyeler önce, sonra "Seviye Dışı")
+                const sortedLevels = Object.keys(statsToShow).sort((a, b) => {
+                    if (a === 'Seviye Dışı') return 1;
+                    if (b === 'Seviye Dışı') return -1;
+                    return parseInt(a) - parseInt(b);
+                });
+                
+                sortedLevels.forEach(levelKey => {
+                    const levelData = statsToShow[levelKey];
+                    const levelCard = document.createElement('div');
+                    levelCard.style.cssText = 'padding: 12px; background: #fff; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); border-left: 4px solid #667eea;';
+                    
+                    // Seviye renklerini ayarla
+                    let borderColor = '#667eea';
+                    if (levelData.level_number !== null && levelData.level_number !== undefined) {
+                        const levelNum = parseInt(levelData.level_number);
+                        if (levelNum <= 3) {
+                            borderColor = '#ef4444'; // Kırmızı
+                        } else if (levelNum <= 6) {
+                            borderColor = '#f59e0b'; // Turuncu
+                        } else if (levelNum <= 10) {
+                            borderColor = '#3b82f6'; // Mavi
+                        } else {
+                            borderColor = '#10b981'; // Yeşil
+                        }
+                    } else {
+                        borderColor = '#9ca3af'; // Gri - Seviye dışı
+                    }
+                    
+                    levelCard.style.borderLeftColor = borderColor;
+                    levelCard.innerHTML = `
+                        <div style="font-weight: 600; color: #374151; margin-bottom: 5px; font-size: 0.9em;">${levelData.level_name}</div>
+                        <div style="font-size: 1.5em; font-weight: bold; color: ${borderColor};">${levelData.word_count}</div>
+                        <div style="font-size: 0.75em; color: #6b7280; margin-top: 3px;">kelime</div>
+                    `;
+                    levelStatsContainer.appendChild(levelCard);
+                });
+                
+                episodeLevelStats.style.display = 'block';
+            } else {
+                episodeLevelStats.style.display = 'none';
+            }
+            
+            episodeInfo.style.display = 'block';
+            
+            if (data.flashcards.length === 0) {
+                flashcardsSection.style.display = 'none';
+                noFlashcardsMessage.style.display = 'block';
+                return;
+            }
+            
+            noFlashcardsMessage.style.display = 'none';
+            flashcardsSection.style.display = 'block';
+            
+            // Flashcard state'ini ayarla
+            window.currentFlashcards = data.flashcards;
+            window.currentFlashcardIndex = 0;
+            window.flashcardFlipped = false;
+            
+            updateFlashcardDisplay();
+            updateFlashcardControls();
+        }
+
+        // Flashcard görünümünü güncelle
+        function updateFlashcardDisplay() {
+            if (!window.currentFlashcards || window.currentFlashcards.length === 0) return;
+            
+            const card = window.currentFlashcards[window.currentFlashcardIndex];
+            const flashcard = document.getElementById('flashcard');
+            
+            if (!card || !flashcard) return;
+            
+            document.getElementById('flashcardWord').textContent = card.word || 'Kelime';
+            document.getElementById('flashcardPronunciation').textContent = card.pronunciation || '';
+            document.getElementById('flashcardDefinition').textContent = card.definition || '(Çeviri henüz eklenmemiş - Kelime Haritasından "Çevir" butonunu kullanın)';
+            document.getElementById('flashcardFrequency').textContent = card.frequency ? `Frekans: ${card.frequency}` : '';
+            
+            // Seviye bilgisini göster
+            const levelBadge = document.getElementById('flashcardLevelBadge');
+            if (!levelBadge) {
+                console.error('flashcardLevelBadge elementi bulunamadı!');
+                return;
+            }
+            
+            // Seviye bilgisi kontrolü
+            if (card.level_number !== null && card.level_number !== undefined && card.level_number !== 'Seviye Dışı') {
+                const levelNum = parseInt(card.level_number);
+                if (!isNaN(levelNum) && levelNum > 0) {
+                    levelBadge.textContent = `Seviye ${levelNum}`;
+                    levelBadge.style.display = 'block';
+                    levelBadge.style.visibility = 'visible';
+                    levelBadge.style.opacity = '1';
+                    
+                    // Seviye renklerini ayarla
+                    if (levelNum <= 3) {
+                        levelBadge.style.background = 'rgba(239, 68, 68, 0.6)'; // Kırmızı - Başlangıç
+                        levelBadge.style.color = '#fff';
+                    } else if (levelNum <= 6) {
+                        levelBadge.style.background = 'rgba(245, 158, 11, 0.6)'; // Turuncu - Orta
+                        levelBadge.style.color = '#fff';
+                    } else if (levelNum <= 10) {
+                        levelBadge.style.background = 'rgba(59, 130, 246, 0.6)'; // Mavi - İleri
+                        levelBadge.style.color = '#fff';
+                    } else {
+                        levelBadge.style.background = 'rgba(16, 185, 129, 0.6)'; // Yeşil - Uzman
+                        levelBadge.style.color = '#fff';
+                    }
+                } else {
+                    levelBadge.style.display = 'none';
+                }
+            } else if (card.level_name && card.level_name !== 'Seviye Dışı' && card.level_name !== undefined) {
+                // Seviye adı varsa göster
+                levelBadge.textContent = card.level_name;
+                levelBadge.style.display = 'block';
+                levelBadge.style.visibility = 'visible';
+                levelBadge.style.opacity = '1';
+                levelBadge.style.background = 'rgba(255, 255, 255, 0.5)';
+                levelBadge.style.color = '#fff';
+            } else {
+                // Seviye bilgisi yok - "Seviye Dışı" göster
+                levelBadge.textContent = 'Seviye Dışı';
+                levelBadge.style.display = 'block';
+                levelBadge.style.visibility = 'visible';
+                levelBadge.style.opacity = '1';
+                levelBadge.style.background = 'rgba(156, 163, 175, 0.5)'; // Gri
+                levelBadge.style.color = '#fff';
+            }
+            
+            // Kartı başlangıç durumuna çevir (göstermiyor)
+            flashcard.style.transform = 'rotateY(0deg)';
+            window.flashcardFlipped = false;
+        }
+
+        // Flashcard kontrollerini güncelle
+        function updateFlashcardControls() {
+            const total = window.currentFlashcards ? window.currentFlashcards.length : 0;
+            const current = window.currentFlashcardIndex;
+            
+            document.getElementById('flashcardCounter').textContent = `${current + 1} / ${total}`;
+            
+            const prevBtn = document.getElementById('prevFlashcardBtn');
+            const nextBtn = document.getElementById('nextFlashcardBtn');
+            const markKnownBtn = document.getElementById('markKnownBtn');
+            const markUnknownBtn = document.getElementById('markUnknownBtn');
+            
+            prevBtn.disabled = current === 0;
+            nextBtn.disabled = current === total - 1;
+            markKnownBtn.disabled = total === 0;
+            markUnknownBtn.disabled = total === 0;
+        }
+
+        // Kartı çevir
+        document.getElementById('flashcard').addEventListener('click', function() {
+            const flashcard = document.getElementById('flashcard');
+            flashcard.style.transform = window.flashcardFlipped ? 'rotateY(0deg)' : 'rotateY(180deg)';
+            window.flashcardFlipped = !window.flashcardFlipped;
+        });
+
+        // Önceki/Sonraki kart
+        document.getElementById('prevFlashcardBtn').addEventListener('click', () => {
+            if (window.currentFlashcardIndex > 0) {
+                window.currentFlashcardIndex--;
+                updateFlashcardDisplay();
+                updateFlashcardControls();
+            }
+        });
+
+        document.getElementById('nextFlashcardBtn').addEventListener('click', () => {
+            if (window.currentFlashcards && window.currentFlashcardIndex < window.currentFlashcards.length - 1) {
+                window.currentFlashcardIndex++;
+                updateFlashcardDisplay();
+                updateFlashcardControls();
+            }
+        });
+
+        // Karıştır
+        document.getElementById('shuffleFlashcardsBtn').addEventListener('click', () => {
+            if (!window.currentFlashcards) return;
+            
+            // Fisher-Yates shuffle
+            for (let i = window.currentFlashcards.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [window.currentFlashcards[i], window.currentFlashcards[j]] = 
+                [window.currentFlashcards[j], window.currentFlashcards[i]];
+            }
+            
+            window.currentFlashcardIndex = 0;
+            updateFlashcardDisplay();
+            updateFlashcardControls();
+        });
+
+        // Başlat (ilk karta git)
+        document.getElementById('startFlashcardsBtn').addEventListener('click', () => {
+            window.currentFlashcardIndex = 0;
+            updateFlashcardDisplay();
+            updateFlashcardControls();
+        });
+
+        // Bilmiyorum/Biliyorum butonları
+        document.getElementById('markKnownBtn').addEventListener('click', async () => {
+            await markFlashcard(true);
+        });
+
+        document.getElementById('markUnknownBtn').addEventListener('click', async () => {
+            await markFlashcard(false);
+        });
+
+        async function markFlashcard(known) {
+            // Check if user is logged in using currentUser (from app.js)
+            if (!window.currentUser || !window.currentUser.user_id) {
+                alert('Lütfen önce giriş yapın!');
+                // Try to show login section if available
+                if (typeof showLoginSection === 'function') {
+                    showLoginSection();
+                }
+                return;
+            }
+            
+            if (!window.currentFlashcards || window.currentFlashcards.length === 0) return;
+            
+            const card = window.currentFlashcards[window.currentFlashcardIndex];
+            
+            try {
+                const response = await fetch(`/api/words/${card.id}/mark`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: window.currentUser.user_id, known: known })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    // Kartı listeden kaldır
+                    window.currentFlashcards.splice(window.currentFlashcardIndex, 1);
+                    
+                    if (window.currentFlashcards.length === 0) {
+                        // Tüm kartlar bitti
+                        document.getElementById('flashcardsSection').style.display = 'none';
+                        document.getElementById('noFlashcardsMessage').style.display = 'block';
+                        document.getElementById('episodeFlashcardCount').textContent = '0';
+                        document.getElementById('episodeUnknownCount').textContent = '0';
+                        // Bildiğim kelime sayısını güncelle
+                        const knownCount = parseInt(document.getElementById('episodeKnownCount').textContent) + 1;
+                        document.getElementById('episodeKnownCount').textContent = knownCount;
+                    } else {
+                        // Aynı index'teki sonraki karta geç (daha önce silinenin yerine)
+                        if (window.currentFlashcardIndex >= window.currentFlashcards.length) {
+                            window.currentFlashcardIndex = window.currentFlashcards.length - 1;
+                        }
+                        updateFlashcardDisplay();
+                        updateFlashcardControls();
+                        document.getElementById('episodeFlashcardCount').textContent = window.currentFlashcards.length;
+                        
+                        // Bildiğim ve bilmediğim kelime sayılarını güncelle
+                        if (known) {
+                            const knownCount = parseInt(document.getElementById('episodeKnownCount').textContent) + 1;
+                            const unknownCount = parseInt(document.getElementById('episodeUnknownCount').textContent) - 1;
+                            document.getElementById('episodeKnownCount').textContent = knownCount;
+                            document.getElementById('episodeUnknownCount').textContent = Math.max(0, unknownCount);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error marking word:', error);
+            }
+        }
+    </script>
+</body>

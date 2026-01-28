@@ -307,6 +307,23 @@ class SpeechProcessor:
     def parse_subtitle_file(self, subtitle_path: str) -> str:
         """Parse VTT or SRT subtitle file to plain text"""
         try:
+            # Use streaming for large files
+            try:
+                from utils.streaming import should_use_streaming, process_subtitle_streaming
+                
+                if should_use_streaming(subtitle_path, threshold_mb=10.0):
+                    print(f"📦 Using streaming for large file: {subtitle_path}")
+                    # Process in streaming fashion
+                    lines = []
+                    for line in process_subtitle_streaming(subtitle_path):
+                        lines.append(line)
+                    content = ' '.join(lines)
+                    return self.parse_subtitle_text(content)
+            except ImportError:
+                # Fallback to regular reading if streaming not available
+                pass
+            
+            # Regular file reading for small files
             with open(subtitle_path, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
             return self.parse_subtitle_text(content)

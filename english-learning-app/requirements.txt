@@ -11,3 +11,5 @@ requests
 nltk
 beautifulsoup4
 argostranslate
+transformers
+torch

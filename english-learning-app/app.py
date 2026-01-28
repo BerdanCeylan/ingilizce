@@ -1,5 +1,6 @@
 import sys
 import os
+import re
 from typing import Optional, List, Dict, Any, Tuple, Union, Set
 from datetime import datetime
 
@@ -23,6 +24,9 @@ except ImportError:
 
 from database import Database
 from speech_processor import SpeechProcessor
+from routes.auth import auth_bp, init_auth_routes
+from routes.rooms import rooms_bp, init_rooms_routes
+from routes.chatbot import chatbot_bp
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-change-in-production')
@@ -84,190 +88,19 @@ except Exception as e:
 active_sessions: Dict[str, Dict[str, Any]] = {}
 room_video_states: Dict[int, Dict[str, Any]] = {}
 
+# Register Blueprints
+init_auth_routes(db)
+init_rooms_routes(db)
+app.register_blueprint(auth_bp)
+app.register_blueprint(rooms_bp)
+app.register_blueprint(chatbot_bp)
+
 @app.route('/')
 def index() -> str:
     """Render the main index page"""
     # Pass Google Client ID to template if available
     google_client_id = os.getenv('GOOGLE_CLIENT_ID', '')
     return render_template('index.html', google_client_id=google_client_id)
-
-# ===== USER MANAGEMENT =====
-
-@app.route('/api/auth/register', methods=['POST'])
-def register() -> Tuple[Response, int]:
-    """Register new user"""
-    data = request.get_json()
-    if data is None:
-        return jsonify({'success': False, 'error': 'Invalid request'}), 400
-    
-    username: Optional[str] = data.get('username')
-    password: Optional[str] = data.get('password')
-    
-    if not username or not password:
-        return jsonify({'success': False, 'error': 'Kullanıcı adı ve şifre gerekli'}), 400
-    
-    password_hash = generate_password_hash(password)
-    success, user_id, message = db.register_user(username, password_hash)
-    
-    if success:
-        return jsonify({'success': True, 'user_id': user_id, 'username': username, 'message': message}), 200
-    else:
-        return jsonify({'success': False, 'error': message}), 400
-
-@app.route('/api/auth/login', methods=['POST'])
-def login() -> Tuple[Response, int]:
-    """Login user"""
-    data = request.get_json()
-    if data is None:
-        return jsonify({'success': False, 'error': 'Invalid request'}), 400
-    
-    password: Optional[str] = data.get('password')
-    
-    username: Optional[str] = data.get('username')
-    if not username or not password:
-        return jsonify({'success': False, 'error': 'Kullanıcı adı ve şifre gerekli'}), 400
-    
-    user = db.get_user_by_username(username)
-    
-    if user and user['password_hash'] and check_password_hash(user['password_hash'], password):
-        return jsonify({'success': True, 'user_id': user['id'], 'username': user['username']}), 200
-    else:
-        return jsonify({'success': False, 'error': 'Geçersiz kullanıcı adı veya şifre'}), 401
-
-@app.route('/api/auth/google', methods=['POST'])
-def google_auth() -> Tuple[Response, int]:
-    """Handle Google Sign-In"""
-    data = request.get_json()
-    if data is None:
-        return jsonify({'success': False, 'error': 'Invalid request'}), 400
-    
-    token: Optional[str] = data.get('token')
-    
-    if not token:
-        return jsonify({'success': False, 'error': 'Token gerekli'}), 400
-    
-    try:
-        # Verify token with Google
-        response = requests.get(f'https://oauth2.googleapis.com/tokeninfo?id_token={token}')
-        if response.status_code != 200:
-            return jsonify({'success': False, 'error': 'Geçersiz Google token'}), 401
-            
-        google_data = response.json()
-        email: Optional[str] = google_data.get('email')
-        google_id: Optional[str] = google_data.get('sub')
-        name: str = google_data.get('name', email.split('@')[0]) if email else 'user'
-        picture: str = google_data.get('picture', '')
-        
-        user_id, username = db.login_with_google(email or '', google_id or '', name, picture)
-        
-        return jsonify({'success': True, 'user_id': user_id, 'username': username}), 200
-    except Exception as e:
-        print(f"Google auth error: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-# ===== WATCH ROOM MANAGEMENT =====
-
-@app.route('/api/rooms', methods=['GET'])
-def get_rooms() -> Response:
-    """Get all active rooms"""
-    rooms_list = db.get_active_rooms()
-    return jsonify({
-        'success': True,
-        'rooms': rooms_list
-    })
-
-@app.route('/api/rooms', methods=['POST'])
-def create_room() -> Tuple[Response, int]:
-    """Create a new watch room"""
-    data = request.get_json()
-    if not data:
-        return jsonify({'success': False, 'error': 'Invalid request'}), 400
-    
-    room_name: str = data.get('room_name', 'Untitled Room')
-    creator_id: Optional[int] = data.get('user_id')
-    video_url: str = data.get('video_url', '')
-    video_title: str = data.get('video_title', 'Video')
-    
-    if not creator_id:
-        return jsonify({'success': False, 'error': 'User ID required'}), 400
-    
-    room_id = db.create_room(room_name, creator_id, video_url, video_title)
-    
-    return jsonify({
-        'success': True,
-        'room_id': room_id,
-        'room_name': room_name
-    }), 200
-
-@app.route('/api/rooms/<int:room_id>', methods=['GET'])
-def get_room_details(room_id: int) -> Tuple[Response, int]:
-    """Get room details including members and messages"""
-    room = db.get_room(room_id)
-    if not room:
-        return jsonify({'success': False, 'error': 'Room not found'}), 404
-
-    members = db.get_room_members(room_id)
-    messages = db.get_room_messages(room_id)
-    
-    return jsonify({
-        'success': True,
-        'room': room,
-        'members': members,
-        'messages': messages
-    }), 200
-
-@app.route('/api/rooms/<int:room_id>/join', methods=['POST'])
-def join_watch_room(room_id: int) -> Tuple[Response, int]:
-    """Add user to room"""
-    data = request.get_json()
-    if not data:
-        return jsonify({'success': False, 'error': 'Invalid request'}), 400
-    
-    user_id: Optional[int] = data.get('user_id')
-    if not user_id:
-        return jsonify({'success': False, 'error': 'User ID required'}), 400
-    
-    # Try to add member
-    if db.add_member_to_room(room_id, user_id):
-        return jsonify({'success': True, 'message': 'Joined room'}), 200
-    
-    # If failed, check if already a member (treat as success for re-join)
-    members = db.get_room_members(room_id)
-    is_member = any(m['id'] == user_id for m in members)
-    
-    if is_member:
-        return jsonify({'success': True, 'message': 'Rejoined room'}), 200
-    
-    return jsonify({'success': False, 'error': 'Could not join room'}), 400
-
-@app.route('/api/rooms/<int:room_id>/stats', methods=['GET'])
-def get_room_video_stats(room_id: int) -> Tuple[Response, int]:
-    """Get vocabulary stats for the video in the room"""
-    user_id_str = request.args.get('user_id')
-    if not user_id_str:
-        return jsonify({'success': False, 'error': 'User ID required'}), 400
-        
-    user_id = int(user_id_str)
-    stats = db.get_video_stats_for_room(room_id, user_id)
-    
-    return jsonify({
-        'success': True,
-        'stats': stats
-    }), 200
-
-@app.route('/api/rooms/<int:room_id>/words', methods=['GET'])
-def get_room_video_words(room_id: int) -> Tuple[Response, int]:
-    """Get words for the video in the room"""
-    user_id_str = request.args.get('user_id')
-    status: str = request.args.get('status', 'all')
-    
-    if not user_id_str:
-        return jsonify({'success': False, 'error': 'User ID required'}), 400
-        
-    user_id = int(user_id_str)
-    words = db.get_room_video_words(room_id, user_id, status)
-    return jsonify({'success': True, 'words': words}), 200
-
 
 # ===== SERIES AND EPISODES ROUTES =====
 
@@ -336,39 +169,15 @@ def get_episode_flashcards(series_name, season_number, episode_file):
         
         words = speech_processor.extract_words(content)
         
-        flashcards = []
-        for word in words:
-            word_data = db.get_word_by_text(word)
-            if word_data:
-                flashcards.append(word_data)
+        # FIXED: Use batch query instead of N+1 queries
+        word_map = db.get_words_by_texts(words)
+        flashcards = [word_map[word.lower().strip()] for word in words if word.lower().strip() in word_map]
 
         return jsonify({'success': True, 'flashcards': flashcards})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-
-@app.route('/api/rooms/<int:room_id>/leave', methods=['POST'])
-def leave_watch_room(room_id: int) -> Tuple[Response, int]:
-    """Remove user from room"""
-    data = request.get_json()
-    if not data:
-        return jsonify({'success': False, 'error': 'Invalid request'}), 400
-    
-    user_id: Optional[int] = data.get('user_id')
-    if not user_id:
-        return jsonify({'success': False, 'error': 'User ID required'}), 400
-    
-    success = db.remove_member_from_room(room_id, user_id)
-    
-    # Check if room is empty and close it
-    members = db.get_room_members(room_id)
-    if not members:
-        db.close_room(room_id)
-    
-    return jsonify({
-        'success': success
-    }), 200
 
 # ===== VIDEO LEARNING ROUTES (ORIGINAL FUNCTIONALITY) =====
 
@@ -560,6 +369,83 @@ def get_word_definition_api(word_id: int) -> Tuple[Response, int]:
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/words/lookup/<word>', methods=['GET'])
+def lookup_word_definition(word: str) -> Tuple[Response, int]:
+    """Get word definition by word text (for transcript word popup)"""
+    try:
+        word_lower = word.lower().strip()
+        
+        # First try to get from database
+        word_data = db.get_word_by_text(word_lower)
+        
+        if word_data:
+            # Get user's known status if logged in
+            user_id = request.args.get('user_id', type=int)
+            known = False
+            if user_id:
+                conn = db.get_connection()
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT known FROM user_words 
+                    WHERE user_id = ? AND word_id = ?
+                ''', (user_id, word_data['id']))
+                row = cursor.fetchone()
+                if row:
+                    known = bool(row[0])
+                db.return_connection(conn)
+            
+            return jsonify({
+                'success': True,
+                'word': word_data['word'],
+                'definition': word_data.get('definition', ''),
+                'pronunciation': word_data.get('pronunciation', ''),
+                'id': word_data['id'],
+                'known': known
+            }), 200
+        
+        # If not in database, try to translate on-the-fly
+        definition, pronunciation = db.get_word_definition(word_lower)
+        
+        return jsonify({
+            'success': True,
+            'word': word_lower,
+            'definition': definition or '',
+            'pronunciation': pronunciation or '',
+            'id': None,
+            'known': False
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/words/batch-lookup', methods=['POST'])
+def batch_lookup_words() -> Tuple[Response, int]:
+    """Get word status for multiple words by text (for transcript section)"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Invalid request'}), 400
+        
+        words = data.get('words', [])
+        user_id = data.get('user_id')
+        
+        if not words:
+            return jsonify({'success': True, 'words': []}), 200
+        
+        if not user_id:
+            return jsonify({'success': False, 'error': 'User ID required'}), 400
+        
+        # Get words with user status
+        word_list = db.get_words_by_texts_with_user_status(words, user_id)
+        
+        return jsonify({
+            'success': True,
+            'words': word_list
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 # ===== AI TRANSLATION ENDPOINTS =====
 
 # Global translator instance for local model
@@ -567,7 +453,7 @@ _local_translator = None
 
 def get_local_translator():
     """Get or initialize the local Argos Translate model for EN->TR translation."""
-    global _local_translator
+    global _local_translator    
     
     if _local_translator is not None:
         return _local_translator
@@ -832,6 +718,43 @@ def translate_package_words(package_id: int) -> Tuple[Response, int]:
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/words/batch-mark', methods=['POST'])
+def batch_mark_words() -> Tuple[Response, int]:
+    """Mark multiple words as known or unknown for a user"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Invalid request'}), 400
+        
+        user_id = data.get('user_id')
+        word_ids = data.get('word_ids', [])
+        known = data.get('known', False)
+        
+        if not user_id:
+            return jsonify({'success': False, 'error': 'User ID required'}), 400
+        
+        if not word_ids or not isinstance(word_ids, list):
+            return jsonify({'success': False, 'error': 'Word IDs list required'}), 400
+        
+        # Mark all words
+        marked_count = 0
+        for word_id in word_ids:
+            try:
+                db.update_user_word_status(user_id, word_id, bool(known))
+                marked_count += 1
+            except Exception as e:
+                print(f"Error marking word {word_id}: {e}")
+                continue
+        
+        return jsonify({
+            'success': True,
+            'marked_count': marked_count,
+            'total_requested': len(word_ids)
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/words/<int:word_id>/mark', methods=['POST'])
 def update_word_status(word_id: int) -> Tuple[Response, int]:
     """Mark word as known/unknown"""
@@ -898,6 +821,99 @@ def delete_video(video_id: int) -> Response:
     success = db.delete_video(video_id)
     return jsonify({'success': success})
 
+
+def save_transcript_to_file(series: str, season: int, episode: int, transcript: str) -> bool:
+    """Save transcript to local file for future use"""
+    try:
+        subtitles_base = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Subtitles")
+        
+        if series == 'friends':
+            folder_name = "Friends"
+        else:
+            folder_name = "BigBangTheory"
+        
+        series_folder = os.path.join(subtitles_base, folder_name)
+        os.makedirs(series_folder, exist_ok=True)
+        
+        # Create filename in consistent format
+        filename = f"s{season:02d}e{episode:02d}-transcript.txt"
+        filepath = os.path.join(series_folder, filename)
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(transcript)
+        
+        print(f"✅ Transkript kaydedildi: {filepath}")
+        return True
+    except Exception as e:
+        print(f"❌ Transkript kaydedilemedi: {e}")
+        return False
+
+
+def fetch_friends_transcript_from_web(season: int, episode: int) -> Optional[str]:
+    """Fetch Friends transcript from subslikescript.com"""
+    try:
+        from bs4 import BeautifulSoup
+    except ImportError:
+        print("BeautifulSoup yüklü değil")
+        return None
+    
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9'
+    }
+    
+    # Try subslikescript.com - has full transcripts
+    try:
+        # Format: https://subslikescript.com/series/Friends-108778/season-1/episode-1-The_One_Where_Monica_Gets_a_Roommate
+        base_url = f"https://subslikescript.com/series/Friends-108778/season-{season}/episode-{episode}"
+        print(f"📥 Transkript çekiliyor: {base_url}")
+        
+        response = requests.get(base_url, headers=headers, timeout=15)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            # Find the full-script div
+            script_div = soup.find('div', class_='full-script')
+            if script_div:
+                transcript = script_div.get_text(separator='\n')
+                if transcript and len(transcript) > 200:
+                    print(f"✅ Subslikescript'den alındı: {len(transcript)} karakter")
+                    return transcript
+    except Exception as e:
+        print(f"⚠️ Subslikescript hatası: {e}")
+    
+    # Fallback: Try crazy-internet-people.com (Friends specific)
+    try:
+        # URL format: http://www.livesinabox.com/friends/season1/101.htm
+        ep_num = f"{season}{episode:02d}"
+        url = f"http://www.livesinabox.com/friends/season{season}/{ep_num}.htm"
+        print(f"📥 Alternatif kaynak deneniyor: {url}")
+        
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            # Find the main content
+            body = soup.find('body')
+            if body:
+                # Remove scripts and styles
+                for tag in body.find_all(['script', 'style']):
+                    tag.decompose()
+                
+                transcript = body.get_text(separator='\n')
+                # Clean up the transcript
+                lines = [line.strip() for line in transcript.split('\n') if line.strip()]
+                transcript = '\n'.join(lines)
+                
+                if len(transcript) > 500:
+                    print(f"✅ Livesinabox'dan alındı: {len(transcript)} karakter")
+                    return transcript
+    except Exception as e:
+        print(f"⚠️ Livesinabox hatası: {e}")
+    
+    return None
+
+
 def fetch_transcript_from_web(season: int, episode: int) -> Optional[str]:
     """Web sitelerinden Friends transkriptini/alt yazıyı çekmeye çalış"""
     try:
@@ -949,10 +965,6 @@ def fetch_transcript_from_web(season: int, episode: int) -> Optional[str]:
                     return transcript[:8000]
     except Exception as e:
         print(f"   ⚠️ TVMuse hatası: {str(e)[:50]}")
-    
-  
-    except Exception as e:
-        print(f"   ⚠️ Genius hatası: {str(e)[:50]}")
     
     # 3. Try IMDb for episode info
     try:
@@ -1677,7 +1689,7 @@ def get_subtitle_content() -> Tuple[Response, int]:
 
 @app.route('/api/subtitles/stats', methods=['GET'])
 def get_subtitle_stats() -> Tuple[Response, int]:
-    """Get statistics for all subtitle databases in a folder"""
+    """Get statistics for all subtitle databases in a folder, organized by folder structure"""
     path = request.args.get('path', '')
     
     # Security check
@@ -1706,11 +1718,20 @@ def get_subtitle_stats() -> Tuple[Response, int]:
         return jsonify({'success': False, 'error': 'Path not found'}), 404
     
     import sqlite3
-    from collections import Counter
+    from collections import Counter, defaultdict
     
-    stats = []
+    # Organize databases by folder
+    folder_stats = defaultdict(lambda: {
+        'databases': [],
+        'unique_words': Counter(),
+        'total_words': 0,
+        'db_count': 0
+    })
+    
     global_counter = Counter()
+    all_databases = []
     
+    # Walk through directory structure
     for root, dirs, filenames in os.walk(full_path):
         for filename in filenames:
             if filename.endswith('.db') and filename != 'combined_stats.db':
@@ -1722,23 +1743,53 @@ def get_subtitle_stats() -> Tuple[Response, int]:
                     # Get individual stats for the list
                     cursor.execute("SELECT COUNT(*), SUM(frequency) FROM word_frequencies")
                     result = cursor.fetchone()
+                    unique_count = result[0] or 0
+                    total_count = result[1] or 0
                     
                     # Aggregate words for global stats
                     cursor.execute("SELECT word, frequency FROM word_frequencies")
-                    # Use dict to bulk update counter for performance
-                    global_counter.update(dict(cursor.fetchall()))
+                    word_freqs = dict(cursor.fetchall())
+                    global_counter.update(word_freqs)
                     
                     conn.close()
                     
+                    # Get relative folder path
                     rel_path = os.path.relpath(db_path, base_dir)
-                    stats.append({
+                    rel_folder = os.path.dirname(rel_path) if os.path.dirname(rel_path) else ''
+                    
+                    # Add to folder stats
+                    folder_info = folder_stats[rel_folder]
+                    folder_info['unique_words'].update(word_freqs)
+                    folder_info['total_words'] += total_count
+                    folder_info['db_count'] += 1
+                    
+                    db_info = {
                         'name': filename,
                         'path': rel_path,
-                        'unique_words': result[0] or 0,
-                        'total_words': result[1] or 0
-                    })
+                        'folder': rel_folder,
+                        'unique_words': unique_count,
+                        'total_words': total_count
+                    }
+                    folder_info['databases'].append(db_info)
+                    all_databases.append(db_info)
+                    
                 except Exception as e:
                     print(f"Error reading {db_path}: {e}")
+    
+    # Convert folder stats to list format with calculated totals
+    folders_list = []
+    for folder_path, folder_info in sorted(folder_stats.items()):
+        unique_words_count = len(folder_info['unique_words'])
+        total_words_sum = folder_info['total_words']
+        
+        folders_list.append({
+            'path': folder_path,
+            'name': os.path.basename(folder_path) if folder_path else 'Root',
+            'db_count': folder_info['db_count'],
+            'unique_words': unique_words_count,
+            'total_words': total_words_sum,
+            'databases': sorted(folder_info['databases'], key=lambda x: x['name'])
+        })
     
     # Create or update combined_stats.db
     if global_counter:
@@ -1762,24 +1813,36 @@ def get_subtitle_stats() -> Tuple[Response, int]:
             conn.close()
             
             # Add combined stats to the list as well
-            stats.append({
+            combined_rel_path = os.path.relpath(combined_db_path, base_dir)
+            combined_folder = os.path.dirname(combined_rel_path) if os.path.dirname(combined_rel_path) else ''
+            
+            combined_db_info = {
                 'name': 'combined_stats.db',
-                'path': os.path.relpath(combined_db_path, base_dir),
+                'path': combined_rel_path,
+                'folder': combined_folder,
                 'unique_words': len(global_counter),
                 'total_words': sum(global_counter.values())
-            })
+            }
+            all_databases.append(combined_db_info)
+            
+            # Add to folder stats if folder exists
+            if combined_folder in folder_stats:
+                folder_stats[combined_folder]['databases'].append(combined_db_info)
             
         except Exception as e:
             print(f"Error creating combined DB: {e}")
     
-    # Sort by name
-    stats.sort(key=lambda x: x['name'])
+    # Sort databases by name
+    all_databases.sort(key=lambda x: x['name'])
     
     return jsonify({
         'success': True,
-        'databases': stats,
+        'databases': all_databases,
+        'folders': folders_list,
+        'current_path': path,
         'summary': {
-            'total_databases': len(stats) - (1 if global_counter else 0),
+            'total_databases': len([db for db in all_databases if db['name'] != 'combined_stats.db']),
+            'total_folders': len(folders_list),
             'total_unique_words': len(global_counter),
             'total_words': sum(global_counter.values())
         }
@@ -1911,10 +1974,27 @@ def process_subtitle_episode() -> Tuple[Response, int]:
             'error': f'Subtitle file not found for {series} S{season}E{episode}'
         }), 404
     
-    # Read and parse subtitle
+    # Read and parse subtitle (with streaming support for large files)
     try:
-        with open(subtitle_path, 'r', encoding='utf-8', errors='ignore') as f:
-            content = f.read()
+        # Use streaming for large files
+        try:
+            from utils.streaming import should_use_streaming, process_subtitle_streaming
+            
+            if should_use_streaming(subtitle_path, threshold_mb=10.0):
+                print(f"📦 Using streaming for large subtitle file: {subtitle_path}")
+                # Process in streaming fashion
+                lines = []
+                for line in process_subtitle_streaming(subtitle_path):
+                    lines.append(line)
+                content = ' '.join(lines)
+            else:
+                # Regular reading for small files
+                with open(subtitle_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
+        except ImportError:
+            # Fallback to regular reading if streaming not available
+            with open(subtitle_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
         
         # Extract words using speech processor
         words = speech_processor.extract_words(content)
@@ -2198,6 +2278,7 @@ def build_combined_word_map() -> Tuple[Response, int]:
     try:
         data = request.get_json()
         selected_series = data.get('series', [])  # List of series: ['friends', 'bigbang']
+        auto_translate = data.get('auto_translate', False)  # Optional: auto-translate (can be slow)
         
         if not selected_series:
             return jsonify({'success': False, 'error': 'No series selected'}), 400
@@ -2308,8 +2389,16 @@ def build_combined_word_map() -> Tuple[Response, int]:
             
             conn_main.commit()
             
-            # Auto-translate all words in background
-            translated_count = auto_translate_all_words()
+            # Auto-translate only if requested (can be very slow for large datasets)
+            translated_count = 0
+            if auto_translate:
+                translated_count = auto_translate_all_words()
+            
+            message = f'Word map built for {", ".join(processed_series)}: {len(all_words_counter)} unique words, {count} packages created'
+            if auto_translate:
+                message += f', {translated_count} words translated'
+            else:
+                message += ' (çeviriler için "Çevir" butonunu kullanın)'
             
             return jsonify({
                 'success': True,
@@ -2320,7 +2409,8 @@ def build_combined_word_map() -> Tuple[Response, int]:
                 'words_added': words_added,
                 'packages_created': count,
                 'translated_count': translated_count,
-                'message': f'Word map built for {", ".join(processed_series)}: {len(all_words_counter)} unique words, {count} packages created, {translated_count} words translated'
+                'auto_translate_enabled': auto_translate,
+                'message': message
             }), 200
             
         except Exception as e:
@@ -2907,25 +2997,20 @@ def get_series_videos(series: str) -> Tuple[Response, int]:
         
         videos = db.get_series_videos(series, season, episode)
         
-        # Add user stats if user_id provided
-        if user_id:
+        # FIXED: Use batch query instead of N+1 queries
+        if user_id and videos:
+            video_ids = [video['id'] for video in videos]
+            stats_map = db.get_video_stats_batch(video_ids, user_id)
+            
             for video in videos:
                 video_id = video['id']
-                # Get known count for this video
-                conn = db.get_connection()
-                cursor = conn.cursor()
-                cursor.execute('''
-                    SELECT 
-                        COUNT(CASE WHEN uw.known = 1 THEN 1 END) as known,
-                        COUNT(CASE WHEN uw.known = 0 OR uw.known IS NULL THEN 1 END) as unknown
-                    FROM video_words vw
-                    LEFT JOIN user_words uw ON vw.word_id = uw.word_id AND uw.user_id = ?
-                    WHERE vw.video_id = ?
-                ''', (user_id, video_id))
-                stats = cursor.fetchone()
-                conn.close()
-                video['known_count'] = stats['known']
-                video['unknown_count'] = stats['unknown']
+                if video_id in stats_map:
+                    stats = stats_map[video_id]
+                    video['known_count'] = stats['known']
+                    video['unknown_count'] = stats['unknown']
+                else:
+                    video['known_count'] = 0
+                    video['unknown_count'] = 0
         
         return jsonify({
             'success': True,
@@ -3052,6 +3137,213 @@ def get_series_episodes(series: str) -> Tuple[Response, int]:
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@app.route('/api/series/<series>/transcript', methods=['GET'])
+def get_series_episode_transcript(series: str) -> Tuple[Response, int]:
+    """Get transcript for a specific episode of a built-in series"""
+    if series not in ['friends', 'bigbang']:
+        return jsonify({'success': False, 'error': 'Invalid series. Use friends or bigbang'}), 400
+    
+    season = request.args.get('season', type=int)
+    episode = request.args.get('episode', type=int)
+    
+    if not season or not episode:
+        return jsonify({'success': False, 'error': 'Season and episode parameters required'}), 400
+    
+    try:
+        import glob as glob_module
+        subtitles_base = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Subtitles")
+        
+        if series == 'friends':
+            folder_name = "Friends"
+            title_prefix = "Friends"
+        else:
+            folder_name = "BigBangTheory"
+            title_prefix = "The Big Bang Theory"
+        
+        series_folder = os.path.join(subtitles_base, folder_name)
+        
+        # Try to find transcript file with various naming patterns
+        transcript = None
+        episode_title = None
+        
+        # Different patterns for different series
+        possible_patterns = [
+            # Our standardized format (highest priority)
+            f"s{season:02d}e{episode:02d}-transcript.txt",
+            f"s{season:02d}e{episode:02d}*.txt",
+            f"S{season:02d}E{episode:02d}*.txt",
+            # Big Bang Theory format - many variations:
+            # series-1-episode-1-title.txt (no padding)
+            # series-1-episode-08-title.txt (episode padded)
+            # series-06-episode-23-title.txt (both padded)
+            f"series-{season}-episode-{episode}-*.txt",        # series-1-episode-1-
+            f"series-{season}-episode-{episode:02d}-*.txt",    # series-1-episode-01-
+            f"series-{season:02d}-episode-{episode}-*.txt",    # series-01-episode-1-
+            f"series-{season:02d}-episode-{episode:02d}-*.txt", # series-01-episode-01-
+            # Other standard formats
+            f"season-{season}-episode-{episode}*.txt",
+            f"{season}x{episode:02d}*.txt",
+            # SRT formats
+            f"*s{season:02d}e{episode:02d}*.srt",
+            f"*{season}x{episode:02d}*.srt",
+            # Friends format possibilities
+            f"friends.s{season:02d}e{episode:02d}*.srt",
+            f"Friends.S{season:02d}E{episode:02d}*.srt",
+        ]
+        
+        for pattern in possible_patterns:
+            matches = glob_module.glob(os.path.join(series_folder, pattern))
+            if matches:
+                # Read the first matching file
+                matched_file = matches[0]
+                with open(matched_file, 'r', encoding='utf-8', errors='ignore') as f:
+                    transcript = f.read()
+                
+                # Remove Git merge conflict markers
+                # Remove conflict markers: <<<<<<< HEAD, =======, >>>>>>> branch_name
+                transcript = re.sub(r'^<<<<<<< .*$', '', transcript, flags=re.MULTILINE)
+                transcript = re.sub(r'^=======.*$', '', transcript, flags=re.MULTILINE)
+                transcript = re.sub(r'^>>>>>>> .*$', '', transcript, flags=re.MULTILINE)
+                # Clean up multiple consecutive newlines
+                transcript = re.sub(r'\n{3,}', '\n\n', transcript)
+                transcript = transcript.strip()
+                
+                # Extract episode title from filename
+                filename = os.path.basename(matched_file)
+                if 'episode' in filename.lower():
+                    # Extract title part: series-1-episode-10-the-loobenfeld-decay.txt -> the-loobenfeld-decay
+                    parts = filename.replace('.txt', '').replace('.srt', '').split('-')
+                    # Find index after "episode" and number
+                    try:
+                        ep_idx = next(i for i, p in enumerate(parts) if p == 'episode')
+                        title_parts = parts[ep_idx + 2:]  # Skip "episode" and episode number
+                        if title_parts:
+                            episode_title = ' '.join(title_parts).replace('-', ' ').title()
+                    except:
+                        pass
+                break
+        
+        # Also try subdirectories (e.g., Season folders)
+        if not transcript:
+            for subdir in ['', f'Season {season}', f'Season{season}', f's{season:02d}']:
+                search_path = os.path.join(series_folder, subdir) if subdir else series_folder
+                if os.path.exists(search_path):
+                    for pattern in possible_patterns:
+                        matches = glob_module.glob(os.path.join(search_path, pattern))
+                        if matches:
+                            with open(matches[0], 'r', encoding='utf-8', errors='ignore') as f:
+                                transcript = f.read()
+                            
+                            # Remove Git merge conflict markers
+                            # Remove conflict markers: <<<<<<< HEAD, =======, >>>>>>> branch_name
+                            transcript = re.sub(r'^<<<<<<< .*$', '', transcript, flags=re.MULTILINE)
+                            transcript = re.sub(r'^=======.*$', '', transcript, flags=re.MULTILINE)
+                            transcript = re.sub(r'^>>>>>>> .*$', '', transcript, flags=re.MULTILINE)
+                            # Clean up multiple consecutive newlines
+                            transcript = re.sub(r'\n{3,}', '\n\n', transcript)
+                            transcript = transcript.strip()
+                            
+                            break
+                if transcript:
+                    break
+        
+        if not transcript:
+            # Try to fetch from web for Friends
+            if series == 'friends':
+                transcript = fetch_friends_transcript_from_web(season, episode)
+                if transcript:
+                    # Save to file for future use
+                    save_transcript_to_file('friends', season, episode, transcript)
+            
+            if not transcript:
+                return jsonify({
+                    'success': False,
+                    'error': f'Bu bölüm için transkript bulunamadı. ({series} S{season:02d}E{episode:02d})'
+                }), 404
+        
+        title = f"{title_prefix} - Season {season} Episode {episode}"
+        if episode_title:
+            title += f": {episode_title}"
+        
+        return jsonify({
+            'success': True,
+            'transcript': transcript,
+            'title': title,
+            'series': series,
+            'season': season,
+            'episode': episode
+        }), 200
+        
+    except Exception as e:
+        print(f"Error getting transcript: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/series/<series>/download-transcripts', methods=['POST'])
+def download_series_transcripts(series: str) -> Tuple[Response, int]:
+    """Download and save transcripts for a series season"""
+    if series not in ['friends', 'bigbang']:
+        return jsonify({'success': False, 'error': 'Invalid series. Use friends or bigbang'}), 400
+    
+    data = request.get_json() or {}
+    season = data.get('season', 1)
+    
+    # Episode counts per season
+    episode_counts = {
+        'friends': {1: 24, 2: 24, 3: 25, 4: 24, 5: 24, 6: 25, 7: 24, 8: 24, 9: 24, 10: 18},
+        'bigbang': {1: 17, 2: 23, 3: 23, 4: 24, 5: 24, 6: 24, 7: 24, 8: 24, 9: 24, 10: 24, 11: 24, 12: 24}
+    }
+    
+    if season not in episode_counts[series]:
+        return jsonify({'success': False, 'error': f'Invalid season {season} for {series}'}), 400
+    
+    total_episodes = episode_counts[series][season]
+    downloaded = 0
+    failed = []
+    already_exists = 0
+    
+    subtitles_base = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Subtitles")
+    folder_name = "Friends" if series == 'friends' else "BigBangTheory"
+    series_folder = os.path.join(subtitles_base, folder_name)
+    
+    for ep in range(1, total_episodes + 1):
+        # Check if already exists
+        filename = f"s{season:02d}e{ep:02d}-transcript.txt"
+        filepath = os.path.join(series_folder, filename)
+        
+        if os.path.exists(filepath):
+            already_exists += 1
+            continue
+        
+        # Try to download
+        transcript = None
+        if series == 'friends':
+            transcript = fetch_friends_transcript_from_web(season, ep)
+        
+        if transcript:
+            if save_transcript_to_file(series, season, ep, transcript):
+                downloaded += 1
+            else:
+                failed.append(ep)
+        else:
+            failed.append(ep)
+        
+        # Small delay to avoid rate limiting
+        import time
+        time.sleep(0.5)
+    
+    return jsonify({
+        'success': True,
+        'series': series,
+        'season': season,
+        'total_episodes': total_episodes,
+        'downloaded': downloaded,
+        'already_exists': already_exists,
+        'failed': failed,
+        'message': f'Sezon {season}: {downloaded} yeni transkript indirildi, {already_exists} zaten mevcut, {len(failed)} başarısız'
+    }), 200
+
+
 @app.route('/api/series/<series>/episodes/<int:season>/<int:episode>/flashcards', methods=['GET'])
 def get_episode_cards_from_db(series: str, season: int, episode: int) -> Tuple[Response, int]:
     """Get flashcards from a subtitle .db file for an episode"""
@@ -3171,14 +3463,18 @@ def get_episode_cards_from_db(series: str, season: int, episode: int) -> Tuple[R
                     'package_id': row[3]
                 }
         
-        conn_main.close()
+        db.return_connection(conn_main)
+        
+        # OPTIMIZATION: Get all words in a single batch query instead of N+1 queries
+        all_word_texts = [row[0] for row in db_words]
+        word_data_map = db.get_words_by_texts(all_word_texts) if all_word_texts else {}
         
         for row in db_words:
             word_text = row[0]
             frequency = row[1]
             
-            # Get word data from main database
-            word_data = db.get_word_by_text(word_text)
+            # Get word data from batch result
+            word_data = word_data_map.get(word_text.lower().strip())
             if word_data:
                 word_id = word_data.get('id')
                 
@@ -3541,6 +3837,80 @@ def get_custom_series_episodes(series_id: str) -> Tuple[Response, int]:
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
+@app.route('/api/custom-series/<series_id>/transcript', methods=['GET'])
+def get_custom_series_transcript(series_id: str) -> Tuple[Response, int]:
+    """Get transcript for a specific episode of a custom series"""
+    episode = request.args.get('episode', '')
+    
+    if not episode:
+        return jsonify({'success': False, 'error': 'Episode parameter required'}), 400
+    
+    try:
+        series = db.get_custom_series_by_id(series_id)
+        if not series:
+            return jsonify({'success': False, 'error': 'Series not found'}), 404
+        
+        db_folder = series['db_folder_path']
+        
+        # Get parent folder of db_folder for transcript files
+        parent_folder = os.path.dirname(db_folder.rstrip('/'))
+        series_folder = os.path.join(parent_folder, series_id)
+        
+        # If series folder doesn't exist, use db_folder's parent
+        if not os.path.exists(series_folder):
+            series_folder = parent_folder
+        
+        transcript = None
+        
+        # Try to find transcript file with various naming patterns
+        possible_filenames = [
+            f"{series_id}_{episode}.txt",
+            f"{series_id}_episode_{episode}.txt",
+            f"{episode}.txt",
+            f"episode_{episode}.txt",
+        ]
+        
+        for filename in possible_filenames:
+            filepath = os.path.join(series_folder, filename)
+            if os.path.exists(filepath):
+                with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                    transcript = f.read()
+                break
+        
+        # Also check the Subtitles folder structure
+        if not transcript:
+            subtitles_base = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Subtitles")
+            custom_folder = os.path.join(subtitles_base, f"{series_id}_db")
+            
+            for filename in possible_filenames:
+                filepath = os.path.join(custom_folder, filename.replace('.txt', '.txt'))
+                if os.path.exists(filepath):
+                    with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                        transcript = f.read()
+                    break
+        
+        if not transcript:
+            return jsonify({
+                'success': False,
+                'error': 'Transcript not found for this episode'
+            }), 404
+        
+        title = f"{series.get('display_name', series_id)} - {episode}"
+        
+        return jsonify({
+            'success': True,
+            'transcript': transcript,
+            'title': title,
+            'series_id': series_id,
+            'episode': episode
+        }), 200
+        
+    except Exception as e:
+        print(f"Error getting custom series transcript: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/api/custom-series/<series_id>/add-episode', methods=['POST'])
 def add_custom_series_episode(series_id: str) -> Tuple[Response, int]:
     """Add a new episode to an existing custom series"""
@@ -3777,6 +4147,56 @@ def get_custom_series_flashcards(series_id: str) -> Tuple[Response, int]:
     except Exception as e:
         print(f"Error getting custom series flashcards: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/grammar/analyze-sentence', methods=['POST'])
+def analyze_sentence_grammar() -> Tuple[Response, int]:
+    """Analyze grammar structure of a sentence"""
+    try:
+        # Ensure NLTK resources are available
+        import nltk
+        try:
+            nltk.data.find('taggers/averaged_perceptron_tagger')
+        except LookupError:
+            print("Downloading NLTK tagger...")
+            nltk.download('averaged_perceptron_tagger', quiet=True)
+        
+        # Try to download the English tagger if needed
+        try:
+            nltk.data.find('taggers/averaged_perceptron_tagger_eng')
+        except LookupError:
+            try:
+                print("Downloading NLTK English tagger...")
+                nltk.download('averaged_perceptron_tagger_eng', quiet=True)
+            except Exception:
+                pass  # Some systems don't need this
+        
+        from utils.grammar_analyzer import GrammarAnalyzer
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Geçersiz istek'}), 400
+        
+        sentence = data.get('sentence', '').strip()
+        if not sentence:
+            return jsonify({'success': False, 'error': 'Cümle gerekli'}), 400
+        
+        analyzer = GrammarAnalyzer()
+        result = analyzer.analyze_sentence(sentence)
+        
+        if result.get('success'):
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        print(f"Error analyzing sentence grammar: {e}")
+        import traceback
+        traceback.print_exc()
+        # Provide more helpful error message
+        error_msg = str(e)
+        if 'averaged_perceptron_tagger' in error_msg or 'NLTK' in error_msg:
+            error_msg = 'NLTK kaynakları yükleniyor... Lütfen birkaç saniye bekleyip tekrar deneyin.'
+        return jsonify({'success': False, 'error': error_msg}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))

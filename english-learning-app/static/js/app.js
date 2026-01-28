@@ -42,12 +42,36 @@ function setupEventListeners() {
     document.getElementById('loginBtn')?.addEventListener('click', loginUser);
     document.getElementById('registerBtn')?.addEventListener('click', registerUser);
     
-    // Tab buttons
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            switchTab(this.dataset.tab);
+    // Tab buttons – event delegation so Profil/Profile tab always responds
+    const tabsContainer = document.querySelector('.tabs');
+    if (tabsContainer) {
+        tabsContainer.addEventListener('click', function(e) {
+            const btn = e.target.closest('.tab-btn');
+            if (btn && btn.dataset.tab) {
+                console.log('Tab button clicked:', btn.dataset.tab);
+                switchTab(btn.dataset.tab);
+            }
         });
-    });
+    } else {
+        console.error('Tabs container not found!');
+    }
+    
+    // Also add direct listener to profile button as backup
+    const profileBtn = document.querySelector('.tab-btn[data-tab="profile"]');
+    if (profileBtn) {
+        console.log('Profile button found, adding direct listener');
+        profileBtn.addEventListener('click', function(e) {
+            console.log('Profile button clicked directly');
+            e.stopPropagation(); // Prevent double firing
+            switchTab('profile');
+        });
+        // Ensure button is visible
+        profileBtn.style.display = 'inline-block';
+        profileBtn.style.visibility = 'visible';
+        profileBtn.style.opacity = '1';
+    } else {
+        console.error('Profile button not found!');
+    }
     
     // Room creation
     document.getElementById('createRoomBtn')?.addEventListener('click', createNewRoom);
@@ -804,12 +828,20 @@ function showAppSection() {
     document.getElementById('loginSection').classList.remove('active');
     document.getElementById('appSection').classList.add('active');
     document.getElementById('appSection').style.display = 'block';
+    
+    // Chatbot floating button her zaman görünür (HTML'de display:flex/block)
+    const floatingBtn = document.getElementById('floatingChatbotBtn');
+    if (floatingBtn) floatingBtn.style.display = 'flex';
 }
 
 function showLoginSection() {
     document.getElementById('appSection').classList.remove('active');
     document.getElementById('loginSection').classList.add('active');
     document.getElementById('loginSection').style.display = 'block';
+    
+    // Chatbot floating button her zaman görünür kalsın
+    const floatingBtn = document.getElementById('floatingChatbotBtn');
+    if (floatingBtn) floatingBtn.style.display = 'flex';
 }
 window.showLoginSection = showLoginSection; // Make available globally
 
@@ -818,8 +850,8 @@ let pendingActionAfterLogin = null;
 
 function requireLogin(callback, message = 'Bu işlem için giriş yapmanız gerekiyor.') {
     if (currentUser && currentUser.user_id) {
-        // User is logged in, execute callback immediately
-        if (callback) callback();
+        // User is logged in, continue with normal execution
+        // DO NOT call callback here - it would cause infinite recursion
         return true;
     } else {
         // User is not logged in, show message and redirect to login
@@ -846,6 +878,8 @@ function executePendingAction() {
 // ===== TAB SWITCHING =====
 
 function switchTab(tabName) {
+    console.log('switchTab called with:', tabName);
+    
     if (roomsInterval) {
         clearInterval(roomsInterval);
         roomsInterval = null;
@@ -860,13 +894,21 @@ function switchTab(tabName) {
     });
 
     const tabElement = document.getElementById(tabName + 'Tab');
+    console.log('Looking for tab element:', tabName + 'Tab', 'Found:', tabElement);
     if (tabElement) {
         tabElement.style.display = 'block';
+        console.log('Tab element displayed');
+    } else {
+        console.error('Tab element not found:', tabName + 'Tab');
     }
 
     const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
+    console.log('Looking for tab button with data-tab:', tabName, 'Found:', tabBtn);
     if (tabBtn) {
         tabBtn.classList.add('active');
+        console.log('Tab button activated');
+    } else {
+        console.error('Tab button not found:', tabName);
     }
 
     if (tabName === 'rooms') {
@@ -877,9 +919,11 @@ function switchTab(tabName) {
         loadStats();
         loadVideos();
     } else if (tabName === 'profile') {
+        console.log('Profile tab clicked, loading profile...');
         loadUserProfile();
     }
 }
+window.switchTab = switchTab;
 
 // ===== ROOM MANAGEMENT =====
 
@@ -2003,8 +2047,8 @@ function renderInteractiveTranscript(text) {
             return `<span class="interactive-word" 
                           data-word="${lower}"
                           style="cursor: pointer; background-color: ${bg}; color: ${color}; padding: 0 2px; border-radius: 2px; font-weight: 500;"
-                          onclick="handleTranscriptWordClick('${lower}')"
-                          title="${info.known ? 'Bilinen' : 'Bilinmeyen'} - Değiştirmek için tıkla">
+                          onclick="handleTranscriptWordClick('${lower}', event)"
+                          title="${info.known ? 'Bilinen' : 'Bilinmeyen'} - Anlam için tıkla">
                           ${escapeHtml(part)}
                     </span>`;
         } else {
@@ -2013,25 +2057,1190 @@ function renderInteractiveTranscript(text) {
     }).join('');
 }
 
-window.handleTranscriptWordClick = function(word) {
-    const info = userWordsMap.get(word);
-    if (info) {
-        toggleWordStatus(info.id, !info.known);
+// ===== WORD DEFINITION POPUP SYSTEM =====
+
+// Store current popup word data
+let currentPopupWord = null;
+
+window.handleTranscriptWordClick = async function(word, event) {
+    // Prevent event bubbling
+    if (event) {
+        event.stopPropagation();
+    }
+    
+    const popup = document.getElementById('wordDefinitionPopup');
+    const wordEl = document.getElementById('popupWord');
+    const pronunciationEl = document.getElementById('popupPronunciation');
+    const definitionEl = document.getElementById('popupDefinition');
+    
+    // Show loading state
+    wordEl.textContent = word;
+    pronunciationEl.textContent = '';
+    definitionEl.textContent = 'Yükleniyor...';
+    
+    // Position popup near the clicked word
+    if (event && event.target) {
+        const rect = event.target.getBoundingClientRect();
+        const popupWidth = 300;
+        
+        // Calculate position
+        let left = rect.left + (rect.width / 2) - (popupWidth / 2);
+        let top = rect.bottom + 15;
+        
+        // Adjust if going off screen
+        if (left < 10) left = 10;
+        if (left + popupWidth > window.innerWidth - 10) {
+            left = window.innerWidth - popupWidth - 10;
+        }
+        
+        // If popup would go below viewport, show above the word
+        if (top + 250 > window.innerHeight) {
+            top = rect.top - 250;
+            // Move arrow to bottom
+            const arrow = popup.querySelector('.word-popup-arrow');
+            if (arrow) {
+                arrow.style.top = 'auto';
+                arrow.style.bottom = '-10px';
+                arrow.style.borderBottom = 'none';
+                arrow.style.borderTop = '10px solid #667eea';
+            }
+        } else {
+            const arrow = popup.querySelector('.word-popup-arrow');
+            if (arrow) {
+                arrow.style.top = '-10px';
+                arrow.style.bottom = 'auto';
+                arrow.style.borderTop = 'none';
+                arrow.style.borderBottom = '10px solid #10b981';
+            }
+        }
+        
+        popup.style.left = left + 'px';
+        popup.style.top = top + 'px';
+    } else {
+        // Center on screen if no event
+        popup.style.left = '50%';
+        popup.style.top = '50%';
+        popup.style.transform = 'translate(-50%, -50%)';
+    }
+    
+    popup.style.display = 'block';
+    
+    // Fetch word definition from API
+    try {
+        const userId = currentUser?.user_id || '';
+        const response = await fetch(`/api/words/lookup/${encodeURIComponent(word)}?user_id=${userId}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            currentPopupWord = {
+                word: data.word,
+                id: data.id,
+                known: data.known,
+                definition: data.definition,
+                pronunciation: data.pronunciation
+            };
+            
+            // Update userWordsMap with word info (if word has an ID)
+            if (data.id) {
+                userWordsMap.set(data.word.toLowerCase(), {
+                    id: data.id,
+                    known: data.known === true || data.known === 1
+                });
+            }
+            
+            wordEl.textContent = data.word;
+            pronunciationEl.textContent = data.pronunciation || '';
+            definitionEl.textContent = data.definition || 'Çeviri bulunamadı';
+            
+            // Update button states based on known status
+            updatePopupButtons(data.known);
+        } else {
+            definitionEl.textContent = 'Tanım yüklenemedi';
+        }
+    } catch (error) {
+        console.error('Error fetching word definition:', error);
+        definitionEl.textContent = 'Hata oluştu';
     }
 }
 
+function updatePopupButtons(known) {
+    const knownBtn = document.getElementById('popupMarkKnown');
+    const unknownBtn = document.getElementById('popupMarkUnknown');
+    
+    if (known) {
+        knownBtn.style.opacity = '0.5';
+        knownBtn.disabled = true;
+        unknownBtn.style.opacity = '1';
+        unknownBtn.disabled = false;
+    } else {
+        knownBtn.style.opacity = '1';
+        knownBtn.disabled = false;
+        unknownBtn.style.opacity = '0.5';
+        unknownBtn.disabled = true;
+    }
+}
+
+window.markWordFromPopup = async function(known) {
+    if (!currentPopupWord || !currentPopupWord.id) {
+        alert('Bu kelime henüz veritabanına eklenmemiş.');
+        return;
+    }
+    
+    if (!currentUser || !currentUser.user_id) {
+        alert('Lütfen önce giriş yapın!');
+        closeWordPopup();
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/words/${currentPopupWord.id}/mark`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                user_id: currentUser.user_id,
+                known: known
+            })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            // Update local state
+            currentPopupWord.known = known;
+            updatePopupButtons(known);
+            
+            // Update userWordsMap (add if doesn't exist)
+            userWordsMap.set(currentPopupWord.word.toLowerCase(), { 
+                id: currentPopupWord.id, 
+                known: known 
+            });
+            
+            // Update transcript highlights
+            updateTranscriptHighlights();
+            updateTranscriptStudyStats();
+        }
+    } catch (error) {
+        console.error('Error marking word:', error);
+    }
+}
+
+window.closeWordPopup = function() {
+    const popup = document.getElementById('wordDefinitionPopup');
+    popup.style.display = 'none';
+    currentPopupWord = null;
+}
+
+// Close popup when clicking outside
+document.addEventListener('click', function(event) {
+    const popup = document.getElementById('wordDefinitionPopup');
+    if (popup && popup.style.display === 'block') {
+        if (!popup.contains(event.target) && !event.target.classList.contains('interactive-word')) {
+            closeWordPopup();
+        }
+    }
+});
+
+// ===== TRANSCRIPT STUDY MODE =====
+
+let currentTranscriptData = null;
+let highlightUnknownActive = false;
+
+async function loadTranscriptWords(transcript) {
+    if (!currentUser || !currentUser.user_id || !transcript) return;
+    
+    try {
+        // Extract unique words from transcript (same logic as renderTranscriptStudyContent)
+        let cleanedText = transcript
+            .replace(/^<<<<<<< .*$/gm, '')
+            .replace(/^=======.*$/gm, '')
+            .replace(/^>>>>>>> .*$/gm, '')
+            .replace(/\n{3,}/g, '\n\n')
+            .replace(/\d{2}:\d{2}:\d{2},\d{3} --> \d{2}:\d{2}:\d{2},\d{3}/g, '')
+            .replace(/^\d+\s*$/gm, '')
+            .replace(/<[^>]+>/g, '')
+            .replace(/\[[^\]]*\]/g, '')
+            .trim();
+        
+        // Extract words using same regex as renderTranscriptStudyContent
+        const words = cleanedText.match(/([a-zA-Z']+(?:-[a-zA-Z']+)?)/g) || [];
+        const uniqueWords = [...new Set(words.map(w => w.toLowerCase()))];
+        
+        if (uniqueWords.length === 0) return;
+        
+        // Load words from API
+        const response = await fetch('/api/words/batch-lookup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                words: uniqueWords,
+                user_id: currentUser.user_id
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success && data.words) {
+            // Populate userWordsMap with words from transcript
+            data.words.forEach(w => {
+                userWordsMap.set(w.word.toLowerCase(), {
+                    id: w.id,
+                    known: w.known === 1 || w.known === true
+                });
+            });
+        }
+    } catch (error) {
+        console.error('Error loading transcript words:', error);
+    }
+}
+
+window.openTranscriptStudyMode = async function() {
+    const modal = document.getElementById('transcriptStudyModal');
+    const contentDiv = document.getElementById('transcriptStudyContent');
+    const titleEl = document.getElementById('transcriptModalTitle');
+    
+    // Get current episode info from the active selection
+    let transcript = '';
+    let title = 'Transkript Çalışma Modu';
+    
+    // Determine which series/episode is selected
+    let seriesId = null;
+    let season = null;
+    let episode = null;
+    
+    // Check main selection area first - get series from button dataset
+    const mainLoadBtn = document.getElementById('loadEpisodeFlashcardsBtn');
+    const seasonSelect = document.getElementById('seriesSeasonSelect');
+    const episodeSelect = document.getElementById('seriesEpisodeSelect');
+    
+    if (mainLoadBtn && mainLoadBtn.dataset.series && seasonSelect && seasonSelect.value && episodeSelect && episodeSelect.value) {
+        seriesId = mainLoadBtn.dataset.series;
+        season = seasonSelect.value;
+        episode = episodeSelect.value;
+    }
+    
+    // Check flashcard area if main area not selected
+    if (!seriesId || !season || !episode) {
+        const flashcardLoadBtn = document.getElementById('loadEpisodeFlashcardsBtnFlashcard');
+        const seasonSelectFlashcard = document.getElementById('seriesSeasonSelectFlashcard');
+        
+        if (flashcardLoadBtn) {
+            // Check for custom series
+            if (flashcardLoadBtn.dataset.customSeries) {
+                seriesId = flashcardLoadBtn.dataset.customSeries;
+                episode = flashcardLoadBtn.dataset.customEpisode || (seasonSelectFlashcard ? seasonSelectFlashcard.value : null);
+            }
+            // Check for built-in series in flashcard area
+            else if (flashcardLoadBtn.dataset.series) {
+                seriesId = flashcardLoadBtn.dataset.series;
+                season = flashcardLoadBtn.dataset.season;
+                episode = flashcardLoadBtn.dataset.episode;
+            }
+        }
+    }
+    
+    if (!seriesId) {
+        alert('Lütfen önce bir dizi seçin!');
+        return;
+    }
+    
+    if (!episode) {
+        alert('Lütfen önce bir bölüm seçin!');
+        return;
+    }
+    
+    // Show modal with loading state
+    modal.style.display = 'flex';
+    contentDiv.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;"><p>Transkript yükleniyor...</p></div>';
+    
+    try {
+        // Fetch transcript based on series type
+        let response;
+        
+        if (seriesId === 'friends' || seriesId === 'bigbang') {
+            // Built-in series - try to get from subtitle files
+            response = await fetch(`/api/series/${seriesId}/transcript?season=${season}&episode=${episode}`);
+        } else {
+            // Custom series
+            response = await fetch(`/api/custom-series/${seriesId}/transcript?episode=${episode}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.success && data.transcript) {
+            transcript = data.transcript;
+            title = data.title || `${seriesId} - Bölüm ${episode}`;
+            currentTranscriptData = {
+                seriesId,
+                season,
+                episode,
+                transcript
+            };
+        } else {
+            // Show error message from API
+            const errorMsg = data.error || 'Bilinmeyen hata';
+            console.error('Transcript API error:', errorMsg);
+            
+            // Fallback: Try to use video transcript if available
+            const videoTranscriptEl = document.querySelector('[id^="transcript-"]');
+            if (videoTranscriptEl) {
+                transcript = videoTranscriptEl.textContent || '';
+            }
+            
+            if (!transcript) {
+                contentDiv.innerHTML = `<div style="text-align: center; padding: 40px; color: #dc2626;">
+                    <p>Bu bölüm için transkript bulunamadı.</p>
+                    <p style="font-size: 0.9em; color: #666; margin-top: 10px;">${errorMsg}</p>
+                    <p style="font-size: 0.85em; color: #999; margin-top: 15px;">
+                        Seçili: ${seriesId || 'Yok'} - Sezon ${season || 'Yok'} Bölüm ${episode || 'Yok'}
+                    </p>
+                </div>`;
+                return;
+            }
+        }
+        
+        titleEl.textContent = `📖 ${title}`;
+        
+        // Extract words from transcript and load their status from database
+        await loadTranscriptWords(transcript);
+        
+        // Render interactive transcript
+        const interactiveHTML = renderTranscriptStudyContent(transcript);
+        contentDiv.innerHTML = interactiveHTML;
+        
+        // Ensure transcript is visible (in case it was hidden by grammar analysis)
+        contentDiv.style.display = 'block';
+        
+        // Update stats
+        updateTranscriptStudyStats();
+        
+    } catch (error) {
+        console.error('Error loading transcript:', error);
+        contentDiv.innerHTML = '<div style="text-align: center; padding: 40px; color: #dc2626;"><p>Transkript yüklenirken hata oluştu.</p></div>';
+    }
+}
+
+function renderTranscriptStudyContent(text) {
+    if (!text) return '';
+    
+    // Clean up Git merge conflict markers first
+    let cleanedText = text
+        .replace(/^<<<<<<< .*$/gm, '')  // Remove <<<<<<< HEAD or <<<<<<< branch_name
+        .replace(/^=======.*$/gm, '')   // Remove =======
+        .replace(/^>>>>>>> .*$/gm, '')  // Remove >>>>>>> branch_name
+        .replace(/\n{3,}/g, '\n\n');    // Clean up multiple consecutive newlines
+    
+    // Clean up SRT timestamp format if present
+    cleanedText = cleanedText
+        .replace(/\d{2}:\d{2}:\d{2},\d{3} --> \d{2}:\d{2}:\d{2},\d{3}/g, '')
+        .replace(/^\d+\s*$/gm, '')
+        .replace(/<[^>]+>/g, '')
+        .replace(/\[[^\]]*\]/g, '')
+        .trim();
+    
+    // Split into words and non-words
+    const parts = cleanedText.split(/([a-zA-Z']+(?:-[a-zA-Z']+)?)/);
+    
+    // Create a map to ensure consistent coloring for the same word
+    const wordStatusCache = new Map();
+    
+    return parts.map(part => {
+        const lower = part.toLowerCase().trim();
+        if (/^[a-zA-Z']+(?:-[a-zA-Z']+)?$/.test(part) && part.length > 0) {
+            // Check cache first for consistency
+            let isKnown = false;
+            if (wordStatusCache.has(lower)) {
+                isKnown = wordStatusCache.get(lower);
+            } else {
+                // Check userWordsMap
+                const info = userWordsMap.get(lower);
+                isKnown = info ? info.known : false;
+                // Cache the result for this word
+                wordStatusCache.set(lower, isKnown);
+            }
+            
+            const wordClass = isKnown ? 'known-word' : 'unknown-word';
+            
+            return `<span class="interactive-word ${wordClass}" 
+                          data-word="${lower}"
+                          data-original="${escapeHtml(part)}"
+                          onclick="handleTranscriptWordClick('${lower}', event)"
+                          title="${isKnown ? 'Bilinen kelime' : 'Bilinmeyen kelime'} - Anlam için tıkla">
+                          ${escapeHtml(part)}
+                    </span>`;
+        } else {
+            // Preserve line breaks
+            return part.replace(/\n/g, '<br>');
+        }
+    }).join('');
+}
+
+function updateTranscriptStudyStats() {
+    const contentDiv = document.getElementById('transcriptStudyContent');
+    if (!contentDiv) return;
+    
+    // Group words by their lowercase form to ensure consistency
+    const wordGroups = new Map();
+    const allWords = contentDiv.querySelectorAll('.interactive-word');
+    
+    // First pass: group all instances of the same word
+    allWords.forEach(wordEl => {
+        const word = wordEl.dataset.word ? wordEl.dataset.word.toLowerCase().trim() : null;
+        if (!word) return;
+        
+        if (!wordGroups.has(word)) {
+            wordGroups.set(word, []);
+        }
+        wordGroups.get(word).push(wordEl);
+    });
+    
+    // Count UNIQUE words (not total occurrences)
+    let uniqueKnownCount = 0;
+    let uniqueUnknownCount = 0;
+    const uniqueWords = new Set();
+    
+    // Second pass: update all instances consistently and count unique words
+    wordGroups.forEach((wordElements, word) => {
+        // Skip if we already counted this word
+        if (uniqueWords.has(word)) return;
+        uniqueWords.add(word);
+        
+        const info = userWordsMap.get(word);
+        const isKnown = info ? info.known : false;
+        
+        // Count as unique word
+        if (isKnown) {
+            uniqueKnownCount++;
+        } else {
+            uniqueUnknownCount++;
+        }
+        
+        // Update all instances of this word consistently
+        wordElements.forEach(wordEl => {
+            if (isKnown) {
+                wordEl.classList.remove('unknown-word', 'highlight-unknown');
+                wordEl.classList.add('known-word');
+            } else {
+                wordEl.classList.remove('known-word');
+                wordEl.classList.add('unknown-word');
+                if (highlightUnknownActive) {
+                    wordEl.classList.add('highlight-unknown');
+                }
+            }
+        });
+    });
+    
+    // Update stat displays with UNIQUE word counts
+    const knownEl = document.getElementById('transcriptKnownCount');
+    const unknownEl = document.getElementById('transcriptUnknownCount');
+    const totalEl = document.getElementById('transcriptTotalCount');
+    
+    if (knownEl) knownEl.textContent = uniqueKnownCount;
+    if (unknownEl) unknownEl.textContent = uniqueUnknownCount;
+    if (totalEl) totalEl.textContent = uniqueWords.size; // Total unique words
+}
+
+window.toggleUnknownHighlight = function() {
+    highlightUnknownActive = !highlightUnknownActive;
+    
+    const btn = document.getElementById('highlightUnknownBtn');
+    if (highlightUnknownActive) {
+        btn.textContent = '🟡 Vurgulamayı Kapat';
+        btn.classList.add('active');
+    } else {
+        btn.textContent = '🔴 Bilinmeyenleri Vurgula';
+        btn.classList.remove('active');
+    }
+    
+    // Update highlights
+    const contentDiv = document.getElementById('transcriptStudyContent');
+    if (contentDiv) {
+        contentDiv.querySelectorAll('.interactive-word.unknown-word').forEach(el => {
+            if (highlightUnknownActive) {
+                el.classList.add('highlight-unknown');
+            } else {
+                el.classList.remove('highlight-unknown');
+            }
+        });
+    }
+}
+
+window.markAllTranscriptWordsAsKnown = async function() {
+    if (!currentUser || !currentUser.user_id) {
+        alert('Lütfen önce giriş yapın!');
+        if (typeof showLoginSection === 'function') {
+            showLoginSection();
+        }
+        return;
+    }
+    
+    const contentDiv = document.getElementById('transcriptStudyContent');
+    if (!contentDiv) {
+        alert('Transkript bulunamadı!');
+        return;
+    }
+    
+    // Get all unique unknown words from transcript
+    const allWords = contentDiv.querySelectorAll('.interactive-word');
+    const unknownWords = new Set();
+    const wordIdMap = new Map();
+    
+    allWords.forEach(wordEl => {
+        const word = wordEl.dataset.word ? wordEl.dataset.word.toLowerCase().trim() : null;
+        if (!word) return;
+        
+        const info = userWordsMap.get(word);
+        if (info && info.id && !info.known) {
+            // This is an unknown word with an ID
+            unknownWords.add(word);
+            wordIdMap.set(word, info.id);
+        } else if (!info || !info.id) {
+            // Word exists in transcript but not in database - we'll need to add it first
+            // For now, skip these words
+        }
+    });
+    
+    if (unknownWords.size === 0) {
+        alert('Tüm kelimeler zaten bilinen olarak işaretli veya veritabanında yok!');
+        return;
+    }
+    
+    // Confirm action
+    const confirmMsg = `Bu bölümdeki ${unknownWords.size} bilinmeyen kelimeyi bilinen olarak işaretlemek istediğinize emin misiniz?`;
+    if (!confirm(confirmMsg)) {
+        return;
+    }
+    
+    const btn = document.getElementById('markAllKnownBtn');
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '⏳ İşleniyor...';
+    
+    try {
+        // Mark all unknown words as known
+        const wordIds = Array.from(unknownWords).map(word => wordIdMap.get(word)).filter(id => id);
+        
+        if (wordIds.length === 0) {
+            alert('İşaretlenecek kelime bulunamadı!');
+            btn.disabled = false;
+            btn.textContent = originalText;
+            return;
+        }
+        
+        // Batch update words
+        const response = await fetch('/api/words/batch-mark', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                user_id: currentUser.user_id,
+                word_ids: wordIds,
+                known: true
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Update userWordsMap
+            unknownWords.forEach(word => {
+                const info = userWordsMap.get(word);
+                if (info && info.id) {
+                    userWordsMap.set(word, {id: info.id, known: true});
+                }
+            });
+            
+            // Update transcript display
+            updateTranscriptHighlights();
+            updateTranscriptStudyStats();
+            
+            // Reload words list
+            await loadWords();
+            loadStats();
+            
+            // Show success message
+            alert(`✅ ${data.marked_count || wordIds.length} kelime bilinen olarak işaretlendi!`);
+        } else {
+            alert('❌ Hata: ' + (data.error || 'Kelimeler işaretlenemedi'));
+        }
+    } catch (error) {
+        console.error('Error marking words as known:', error);
+        alert('❌ Hata: Kelimeler işaretlenirken bir sorun oluştu: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+    }
+}
+
+window.closeTranscriptStudyModal = function() {
+    const modal = document.getElementById('transcriptStudyModal');
+    modal.style.display = 'none';
+    currentTranscriptData = null;
+    highlightUnknownActive = false;
+    
+    // Reset highlight button
+    const btn = document.getElementById('highlightUnknownBtn');
+    if (btn) {
+        btn.textContent = '🔴 Bilinmeyenleri Vurgula';
+        btn.classList.remove('active');
+    }
+    
+    // Close grammar analysis panel
+    closeGrammarAnalysis();
+}
+
+// Grammar Analysis Functions
+let grammarAnalysisActive = false;
+let selectedSentence = '';
+
+window.toggleGrammarAnalysis = function() {
+    grammarAnalysisActive = !grammarAnalysisActive;
+    const panel = document.getElementById('grammarAnalysisPanel');
+    const btn = document.getElementById('analyzeGrammarBtn');
+    const transcriptContent = document.getElementById('transcriptStudyContent');
+    
+    if (grammarAnalysisActive) {
+        panel.style.display = 'flex';
+        btn.textContent = '📚 Gramer Analizi (Açık)';
+        btn.classList.add('active');
+        
+        // Keep transcript visible so user can select sentences from it
+        if (transcriptContent) {
+            transcriptContent.style.display = 'block';
+            transcriptContent.style.userSelect = 'text';
+            transcriptContent.style.cursor = 'text';
+            
+            // Add selection event listener
+            transcriptContent.addEventListener('mouseup', handleTextSelection);
+        }
+        
+        // Initialize grammar analysis UI
+        initGrammarAnalysisUI();
+    } else {
+        closeGrammarAnalysis();
+    }
+}
+
+function closeGrammarAnalysis() {
+    grammarAnalysisActive = false;
+    const panel = document.getElementById('grammarAnalysisPanel');
+    const btn = document.getElementById('analyzeGrammarBtn');
+    const contentDiv = document.getElementById('grammarAnalysisContent');
+    const transcriptContent = document.getElementById('transcriptStudyContent');
+    
+    if (panel) panel.style.display = 'none';
+    if (btn) {
+        btn.textContent = '📚 Gramer Analizi';
+        btn.classList.remove('active');
+    }
+    
+    // Transcript stays visible, no need to change it
+    if (transcriptContent) {
+        transcriptContent.style.display = 'block';
+    }
+    
+    // Reset scroll position
+    if (contentDiv) {
+        contentDiv.scrollTop = 0;
+    }
+    
+    selectedSentence = '';
+    
+    // Remove selection event listener
+    if (transcriptContent) {
+        transcriptContent.removeEventListener('mouseup', handleTextSelection);
+    }
+}
+
+function handleTextSelection() {
+    if (!grammarAnalysisActive) return;
+    
+    const selection = window.getSelection();
+    const selectedText = selection.toString().trim();
+    
+    if (selectedText && selectedText.length > 3) {
+        selectedSentence = selectedText;
+        updateGrammarAnalysisUI(selectedText);
+        
+        // Visual feedback - show a toast notification
+        showSelectionFeedback(selectedText);
+    }
+}
+
+function showSelectionFeedback(text) {
+    // Remove existing feedback if any
+    const existingFeedback = document.getElementById('selectionFeedback');
+    if (existingFeedback) {
+        existingFeedback.remove();
+    }
+    
+    // Create feedback element
+    const feedback = document.createElement('div');
+    feedback.id = 'selectionFeedback';
+    feedback.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        padding: 15px 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+        z-index: 10000;
+        animation: slideIn 0.3s ease;
+        max-width: 300px;
+        font-size: 0.95em;
+    `;
+    feedback.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 1.3em;">✅</span>
+            <div>
+                <strong>Cümle seçildi!</strong><br>
+                <span style="font-size: 0.9em; opacity: 0.9;">"${text.substring(0, 40)}${text.length > 40 ? '...' : ''}"</span>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(feedback);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+        feedback.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => feedback.remove(), 300);
+    }, 3000);
+}
+
+// Add CSS animations
+if (!document.getElementById('selectionFeedbackStyles')) {
+    const style = document.createElement('style');
+    style.id = 'selectionFeedbackStyles';
+    style.textContent = `
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+function initGrammarAnalysisUI() {
+    const contentDiv = document.getElementById('grammarAnalysisContent');
+    if (!contentDiv) return;
+    
+    // Reset scroll position
+    contentDiv.scrollTop = 0;
+    
+    contentDiv.innerHTML = `
+        <div style="background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 15px; border: 1px solid #e2e8f0;">
+            <label for="sentenceInput" style="display: block; margin-bottom: 10px; font-weight: 600; color: #1e40af; font-size: 1.05em;">
+                ✏️ Analiz Edilecek Cümle:
+            </label>
+            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                <input 
+                    type="text" 
+                    id="sentenceInput" 
+                    placeholder="Transkriptten bir cümle seçin veya buraya yazın..." 
+                    style="flex: 1; padding: 12px 16px; border: 2px solid #3b82f6; border-radius: 8px; font-size: 1em; transition: border-color 0.2s;"
+                    onkeypress="if(event.key==='Enter') analyzeSelectedSentence()"
+                    onfocus="this.style.borderColor='#2563eb'; this.style.boxShadow='0 0 0 3px rgba(59, 130, 246, 0.1)'"
+                    onblur="this.style.borderColor='#3b82f6'; this.style.boxShadow='none'"
+                >
+                <button 
+                    onclick="analyzeSelectedSentence()" 
+                    class="btn btn-primary"
+                    style="white-space: nowrap; padding: 12px 24px; font-size: 1em; font-weight: 600; border-radius: 8px; box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2); transition: all 0.2s;"
+                    onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 6px rgba(59, 130, 246, 0.3)'"
+                    onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(59, 130, 246, 0.2)'"
+                >
+                    🔍 Analiz Et
+                </button>
+            </div>
+            <div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 12px; border-radius: 4px; margin-top: 10px;">
+                <p style="margin: 0; font-size: 0.9em; color: #1e40af; line-height: 1.6;">
+                    <strong>💡 İpucu:</strong> Sol taraftaki transkriptten bir cümleyi fare ile seçin, seçilen cümle otomatik olarak buraya gelecektir.
+                </p>
+            </div>
+        </div>
+        <div id="grammarResults" style="display: none;"></div>
+    `;
+}
+
+function updateGrammarAnalysisUI(sentence) {
+    const input = document.getElementById('sentenceInput');
+    if (input) {
+        input.value = sentence;
+        // Visual feedback
+        input.style.borderColor = '#10b981';
+        input.style.backgroundColor = '#f0fdf4';
+        setTimeout(() => {
+            input.style.borderColor = '#3b82f6';
+            input.style.backgroundColor = '#fff';
+        }, 1500);
+    }
+}
+
+window.analyzeSelectedSentence = async function() {
+    const input = document.getElementById('sentenceInput');
+    const sentence = input ? input.value.trim() : selectedSentence.trim();
+    
+    if (!sentence || sentence.length < 3) {
+        alert('Lütfen analiz edilecek bir cümle girin veya seçin!');
+        return;
+    }
+    
+    const resultsDiv = document.getElementById('grammarResults');
+    if (!resultsDiv) return;
+    
+    // Show loading state
+    resultsDiv.style.display = 'block';
+    resultsDiv.innerHTML = '<div style="text-align: center; padding: 20px; color: #64748b;"><p>⏳ Analiz ediliyor...</p></div>';
+    
+    try {
+        const response = await fetch('/api/grammar/analyze-sentence', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ sentence: sentence })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            displayGrammarResults(data);
+        } else {
+            resultsDiv.innerHTML = `
+                <div style="padding: 15px; background: #fee2e2; border-radius: 6px; color: #991b1b;">
+                    <strong>❌ Hata:</strong> ${data.error || 'Analiz yapılamadı'}
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Grammar analysis error:', error);
+        resultsDiv.innerHTML = `
+            <div style="padding: 15px; background: #fee2e2; border-radius: 6px; color: #991b1b;">
+                <strong>❌ Hata:</strong> Analiz sırasında bir hata oluştu: ${error.message}
+            </div>
+        `;
+    }
+}
+
+function displayGrammarResults(data) {
+    const resultsDiv = document.getElementById('grammarResults');
+    if (!resultsDiv) return;
+    
+    // Scroll to top of grammar panel when results are displayed
+    const grammarPanel = document.getElementById('grammarAnalysisPanel');
+    if (grammarPanel) {
+        grammarPanel.scrollTop = 0;
+    }
+    
+    let html = '<div style="background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">';
+    
+    // Sentence
+    html += `
+        <div style="margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
+            <h4 style="margin: 0 0 10px 0; color: #1e40af; font-size: 1.1em;">📝 Analiz Edilen Cümle:</h4>
+            <p style="margin: 0; font-size: 1.05em; color: #1e293b; font-style: italic;">"${escapeHtml(data.sentence)}"</p>
+        </div>
+    `;
+    
+    // Sentence Type - Educational Format
+    if (data.sentence_type) {
+        html += `
+            <div style="margin-bottom: 20px; padding: 16px; background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border-left: 5px solid #3b82f6; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                    <span style="font-size: 1.5em; margin-right: 10px;">📝</span>
+                    <h4 style="margin: 0; color: #1e40af; font-size: 1.1em;">Cümle Türü</h4>
+                </div>
+                <p style="margin: 8px 0; color: #1e293b; font-weight: 600; font-size: 1.05em;">${data.sentence_type.type || 'Bilinmiyor'}</p>
+                <p style="margin: 8px 0 0 0; color: #475569; font-size: 0.95em; line-height: 1.6;">${data.sentence_type.explanation || ''}</p>
+            </div>
+        `;
+    }
+    
+    // Structure - Detailed Educational Format
+    if (data.structure && data.structure.main_structure) {
+        const structDetail = data.structure.details[data.structure.main_structure];
+        if (structDetail) {
+            html += `
+                <div style="margin-bottom: 25px; padding: 20px; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-left: 5px solid #22c55e; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                    <div style="display: flex; align-items: center; margin-bottom: 15px;">
+                        <span style="font-size: 1.5em; margin-right: 10px;">🏗️</span>
+                        <h4 style="margin: 0; color: #166534; font-size: 1.2em;">${structDetail.explanation || 'Cümle Yapısı'}</h4>
+                    </div>
+                    
+                    ${structDetail.detailed ? `
+                        <div style="margin-bottom: 12px; padding: 12px; background: white; border-radius: 6px;">
+                            <p style="margin: 0; color: #1e293b; line-height: 1.7;">${escapeHtml(structDetail.detailed)}</p>
+                        </div>
+                    ` : ''}
+                    
+                    ${structDetail.structure ? `
+                        <div style="margin-bottom: 12px; padding: 10px; background: #fef3c7; border-radius: 6px; border-left: 3px solid #f59e0b;">
+                            <strong style="color: #92400e; display: block; margin-bottom: 5px;">📐 Yapı:</strong>
+                            <code style="color: #78350f; font-size: 0.95em;">${escapeHtml(structDetail.structure)}</code>
+                        </div>
+                    ` : ''}
+                    
+                    ${structDetail.examples && structDetail.examples.length > 0 ? `
+                        <div style="margin-bottom: 12px;">
+                            <strong style="color: #166534; display: block; margin-bottom: 8px;">💡 Örnekler:</strong>
+                            <ul style="margin: 0; padding-left: 20px; color: #1e293b;">
+                                ${structDetail.examples.map(ex => `<li style="margin-bottom: 6px; line-height: 1.6;">"${escapeHtml(ex)}"</li>`).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+                    
+                    ${structDetail.tips ? `
+                        <div style="margin-bottom: 12px; padding: 10px; background: #dbeafe; border-radius: 6px; border-left: 3px solid #3b82f6;">
+                            <strong style="color: #1e40af; display: block; margin-bottom: 5px;">💡 İpucu:</strong>
+                            <p style="margin: 0; color: #1e293b; line-height: 1.6; font-size: 0.95em;">${escapeHtml(structDetail.tips)}</p>
+                        </div>
+                    ` : ''}
+                    
+                    ${structDetail.translation_tip ? `
+                        <div style="padding: 10px; background: #f3e8ff; border-radius: 6px; border-left: 3px solid #9333ea;">
+                            <strong style="color: #7e22ce; display: block; margin-bottom: 5px;">🌐 Türkçe Karşılığı:</strong>
+                            <p style="margin: 0; color: #1e293b; line-height: 1.6; font-size: 0.95em;">${escapeHtml(structDetail.translation_tip)}</p>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+    }
+    
+    // Grammar Rules - Educational Format
+    if (data.grammar_rules && data.grammar_rules.length > 0) {
+        html += `
+            <div style="margin-bottom: 20px; padding: 16px; background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-left: 5px solid #f59e0b; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <div style="display: flex; align-items: center; margin-bottom: 12px;">
+                    <span style="font-size: 1.5em; margin-right: 10px;">📚</span>
+                    <h4 style="margin: 0; color: #92400e; font-size: 1.1em;">Önemli Gramer Kuralları</h4>
+                </div>
+                <ul style="margin: 0; padding-left: 20px; color: #1e293b; line-height: 1.8;">
+                    ${data.grammar_rules.map(rule => `
+                        <li style="margin-bottom: 10px; padding: 8px; background: white; border-radius: 4px; border-left: 3px solid #f59e0b;">
+                            ${escapeHtml(rule)}
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+        `;
+    }
+    
+    // Parts of Speech
+    if (data.parts_of_speech && data.parts_of_speech.explanations) {
+        html += `
+            <div style="margin-bottom: 15px;">
+                <h4 style="margin: 0 0 10px 0; color: #1e40af; font-size: 1em;">🏷️ Kelime Türleri:</h4>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                    ${Object.entries(data.parts_of_speech.explanations).map(([tag, explanation]) => {
+                        const count = data.parts_of_speech.counts[tag] || 0;
+                        return `
+                            <span style="padding: 6px 12px; background: #e0e7ff; color: #4338ca; border-radius: 4px; font-size: 0.85em;">
+                                <strong>${tag}:</strong> ${explanation} (${count})
+                            </span>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    // Verb Phrases
+    if (data.verb_phrases && data.verb_phrases.length > 0) {
+        html += `
+            <div style="margin-bottom: 15px;">
+                <h4 style="margin: 0 0 10px 0; color: #1e40af; font-size: 1em;">🔤 Fiil Grupları:</h4>
+                <ul style="margin: 0; padding-left: 20px; color: #1e293b;">
+                    ${data.verb_phrases.map(vp => `
+                        <li style="margin-bottom: 6px;">
+                            <strong>"${vp.words.join(' ')}"</strong> - ${vp.explanation || ''}
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+        `;
+    }
+    
+    // Noun Phrases
+    if (data.noun_phrases && data.noun_phrases.length > 0) {
+        html += `
+            <div style="margin-bottom: 15px;">
+                <h4 style="margin: 0 0 10px 0; color: #1e40af; font-size: 1em;">📦 İsim Grupları:</h4>
+                <ul style="margin: 0; padding-left: 20px; color: #1e293b;">
+                    ${data.noun_phrases.map(np => `
+                        <li style="margin-bottom: 6px;">
+                            <strong>"${np.words.join(' ')}"</strong> - ${np.explanation || ''}
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+        `;
+    }
+    
+    // Prepositional Phrases
+    if (data.prepositional_phrases && data.prepositional_phrases.length > 0) {
+        html += `
+            <div style="margin-bottom: 15px;">
+                <h4 style="margin: 0 0 10px 0; color: #1e40af; font-size: 1em;">📍 Edat Grupları:</h4>
+                <ul style="margin: 0; padding-left: 20px; color: #1e293b;">
+                    ${data.prepositional_phrases.map(pp => `
+                        <li style="margin-bottom: 6px;">
+                            <strong>"${pp.words.join(' ')}"</strong> - ${pp.explanation || ''}
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+        `;
+    }
+    
+    // Detailed POS Tags - Collapsible for better UX
+    if (data.pos_tags && data.pos_tags.length > 0) {
+        const posId = 'posDetails_' + Date.now();
+        html += `
+            <div style="margin-bottom: 15px;">
+                <div style="display: flex; align-items: center; margin-bottom: 10px; cursor: pointer;" onclick="togglePosDetails('${posId}')">
+                    <span style="font-size: 1.2em; margin-right: 8px;">🔍</span>
+                    <h4 style="margin: 0; color: #1e40af; font-size: 1em;">Detaylı Kelime Analizi</h4>
+                    <span id="${posId}_toggle" style="margin-left: auto; color: #64748b; font-size: 0.9em;">▼ Göster</span>
+                </div>
+                <div id="${posId}" style="display: none; padding: 12px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+                    <p style="margin: 0 0 10px 0; color: #64748b; font-size: 0.9em; font-style: italic;">
+                        Her kelimenin gramer türü ve açıklaması:
+                    </p>
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                        ${data.pos_tags.map(([word, tag, explanation]) => `
+                            <span style="padding: 6px 10px; background: white; border: 1px solid #cbd5e1; border-radius: 5px; font-size: 0.9em; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                                <strong style="color: #1e40af;">${escapeHtml(word)}</strong> 
+                                <span style="color: #64748b; font-size: 0.85em;">(${tag})</span>
+                                <br>
+                                <span style="color: #475569; font-size: 0.85em; display: block; margin-top: 3px;">${explanation}</span>
+                            </span>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    html += '</div>';
+    resultsDiv.innerHTML = html;
+    resultsDiv.style.display = 'block';
+    
+    // Ensure grammar content is scrollable and scroll to top
+    const contentDiv = document.getElementById('grammarAnalysisContent');
+    if (contentDiv) {
+        // Force scroll to top and ensure overflow is set
+        setTimeout(() => {
+            contentDiv.style.overflowY = 'auto';
+            contentDiv.style.overflowX = 'hidden';
+            contentDiv.scrollTop = 0;
+            
+            // Also ensure the panel itself is visible
+            const panel = document.getElementById('grammarAnalysisPanel');
+            if (panel && panel.style.display === 'none') {
+                panel.style.display = 'flex';
+            }
+            
+            // Force a reflow to ensure scrollbar appears
+            contentDiv.offsetHeight;
+        }, 100);
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+window.togglePosDetails = function(posId) {
+    const element = document.getElementById(posId);
+    const toggle = document.getElementById(posId + '_toggle');
+    if (element && toggle) {
+        if (element.style.display === 'none') {
+            element.style.display = 'block';
+            toggle.textContent = '▲ Gizle';
+        } else {
+            element.style.display = 'none';
+            toggle.textContent = '▼ Göster';
+        }
+    }
+}
+
+// Close modal when clicking outside content
+document.addEventListener('click', function(event) {
+    const modal = document.getElementById('transcriptStudyModal');
+    if (modal && modal.style.display === 'flex') {
+        if (event.target === modal) {
+            closeTranscriptStudyModal();
+        }
+    }
+});
+
+// Close modal with Escape key
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        closeWordPopup();
+        closeTranscriptStudyModal();
+    }
+});
+
 function updateTranscriptHighlights() {
-    document.querySelectorAll('.interactive-word').forEach(el => {
-        const word = el.dataset.word;
+    // Group words by lowercase to ensure consistency
+    const wordGroups = new Map();
+    const allWords = document.querySelectorAll('.interactive-word');
+    
+    // First pass: group all instances
+    allWords.forEach(el => {
+        const word = el.dataset.word ? el.dataset.word.toLowerCase().trim() : null;
+        if (!word) return;
+        
+        if (!wordGroups.has(word)) {
+            wordGroups.set(word, []);
+        }
+        wordGroups.get(word).push(el);
+    });
+    
+    // Second pass: update all instances consistently
+    wordGroups.forEach((wordElements, word) => {
         if (userWordsMap.has(word)) {
             const info = userWordsMap.get(word);
             const color = info.known ? '#059669' : '#dc2626';
             const bg = info.known ? '#d1fae5' : '#fee2e2';
-            el.style.backgroundColor = bg;
-            el.style.color = color;
-            el.title = (info.known ? 'Bilinen' : 'Bilinmeyen') + ' - Değiştirmek için tıkla';
+            const wordClass = info.known ? 'known-word' : 'unknown-word';
+            
+            // Update all instances of this word
+            wordElements.forEach(el => {
+                el.style.backgroundColor = bg;
+                el.style.color = color;
+                el.title = (info.known ? 'Bilinen' : 'Bilinmeyen') + ' - Değiştirmek için tıkla';
+                // Update classes for consistency
+                el.classList.remove('known-word', 'unknown-word');
+                el.classList.add(wordClass);
+            });
         }
     });
+    
+    // Also update transcript stats
+    updateTranscriptStudyStats();
 }
 
 function filterKnown(filter) {
@@ -2067,16 +3276,20 @@ function toggleWordStatus(wordId, known) {
     .then(res => res.json())
     .then(data => {
         if (data.success) {
-            // Haritayı manuel güncelle (hızlı tepki için)
+            // Update all instances of this word in the map
             for (let [word, info] of userWordsMap.entries()) {
                 if (info.id === wordId) {
                     userWordsMap.set(word, {id: wordId, known: known});
-                    break;
                 }
             }
             
+            // Update transcript highlights for all instances
+            updateTranscriptHighlights();
+            
+            // Update transcript stats
+            updateTranscriptStudyStats();
+            
             loadWords().then(() => {
-                updateTranscriptHighlights();
                 loadStats();
             });
         }
@@ -2085,9 +3298,17 @@ function toggleWordStatus(wordId, known) {
 }
 
 function loadStats() {
-    if (!currentUser) return;
+    // Try to get user from currentUser or window.currentUser
+    const user = currentUser || window.currentUser;
+    if (!user || !user.user_id) {
+        const statsDiv = document.getElementById('statsContent');
+        if (statsDiv) {
+            statsDiv.innerHTML = '<p style="color: #dc2626;">Kullanıcı bilgisi bulunamadı. İstatistikler yüklenemiyor.</p>';
+        }
+        return;
+    }
 
-    fetch(`/api/stats?user_id=${currentUser.user_id}`)
+    fetch(`/api/stats?user_id=${user.user_id}`)
     .then(res => res.json())
     .then(data => {
         if (data.success) {
@@ -2176,7 +3397,7 @@ function renderLevelMap(packages) {
         if (progress > 70) statusColor = '#10b981'; // Yeşil
         
         html += `
-            <div class="level-card" onclick="loadLevelWords(${pkg.id}, '${escapeHtml(pkg.package_name)}')" style="
+            <div class="level-card" onclick="loadLevelWords(${pkg.id}, ${JSON.stringify(pkg.package_name)})" style="
                 background: white; 
                 border: 1px solid #e5e7eb; 
                 border-radius: 12px; 
@@ -2231,9 +3452,42 @@ function renderLevelMap(packages) {
 }
 
 function loadLevelWords(packageId, packageName) {
+    console.log('loadLevelWords called:', { packageId, packageName });
+    
+    // Try to get user from currentUser or window.currentUser
+    const user = currentUser || window.currentUser;
+    console.log('User:', user);
+    
+    if (!user || !user.user_id) {
+        console.error('No user found');
+        const container = document.getElementById('levelWordsContainer');
+        if (container) {
+            container.style.display = 'block';
+            container.innerHTML = '<div style="color: red; text-align: center; padding: 20px;">Kelimeleri görmek için lütfen giriş yapın.</div>';
+        } else {
+            console.error('levelWordsContainer not found and no user');
+        }
+        return;
+    }
+    
     currentOpenPackageId = packageId;
-    const container = document.getElementById('levelWordsContainer');
-    if (!container) return;
+    let container = document.getElementById('levelWordsContainer');
+    
+    // If container doesn't exist, create it
+    if (!container) {
+        console.log('levelWordsContainer not found, creating it...');
+        const categoryMap = document.getElementById('wordCategoryMap');
+        if (categoryMap) {
+            container = document.createElement('div');
+            container.id = 'levelWordsContainer';
+            container.style.cssText = 'margin-top: 30px; display: none;';
+            categoryMap.appendChild(container);
+            console.log('levelWordsContainer created');
+        } else {
+            console.error('wordCategoryMap not found, cannot create levelWordsContainer');
+            return;
+        }
+    }
     
     container.style.display = 'block';
     container.innerHTML = `
@@ -2249,18 +3503,40 @@ function loadLevelWords(packageId, packageName) {
         container.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 100);
 
-    fetch(`/api/packages/${packageId}/words?user_id=${currentUser.user_id}`)
-    .then(res => res.json())
+    const apiUrl = `/api/packages/${packageId}/words?user_id=${user.user_id}`;
+    console.log('Fetching:', apiUrl);
+    
+    fetch(apiUrl)
+    .then(res => {
+        console.log('Response status:', res.status);
+        if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        return res.json();
+    })
     .then(data => {
+        console.log('API response:', data);
         if (data.success) {
-            displayLevelWords(data.words, packageName);
+            if (data.words && Array.isArray(data.words)) {
+                console.log(`Received ${data.words.length} words`);
+                displayLevelWords(data.words, packageName);
+            } else {
+                console.error('Invalid words data:', data);
+                container.innerHTML = '<div style="color: red; text-align: center; padding: 20px;">Kelimeler beklenmeyen formatta geldi.</div>';
+            }
+        } else {
+            console.error('API error:', data.error);
+            container.innerHTML = `<div style="color: red; text-align: center; padding: 20px;">Hata: ${data.error || 'Kelimeler yüklenirken bir sorun oluştu.'}</div>`;
         }
     })
     .catch(err => {
         console.error('Error loading level words:', err);
-        container.innerHTML = '<div style="color: red; text-align: center; padding: 20px;">Kelimeler yüklenirken hata oluştu.</div>';
+        container.innerHTML = `<div style="color: red; text-align: center; padding: 20px;">Kelimeler yüklenirken hata oluştu: ${err.message}</div>`;
     });
 }
+
+// Make function globally accessible
+window.loadLevelWords = loadLevelWords;
 
 function closeLevelWords() {
     currentOpenPackageId = null;
@@ -2277,8 +3553,13 @@ function closeLevelWords() {
 }
 
 function displayLevelWords(words, packageName) {
+    console.log('displayLevelWords called:', { wordsCount: words.length, packageName });
     const container = document.getElementById('levelWordsContainer');
-    if (!container) return;
+    if (!container) {
+        console.error('levelWordsContainer not found in displayLevelWords');
+        return;
+    }
+    console.log('Container found, displaying words...');
     
     const knownWords = words.filter(w => w.known);
     const unknownWords = words.filter(w => !w.known);
@@ -2390,18 +3671,54 @@ function displayLevelWords(words, packageName) {
     `;
     
     container.innerHTML = html;
+    container.style.display = 'block'; // Make sure container is visible
+    console.log('Words displayed successfully');
 }
 
 function loadUserProfile() {
-    if (!currentUser) return;
-
+    console.log('loadUserProfile called');
+    console.log('currentUser:', currentUser);
+    console.log('window.currentUser:', window.currentUser);
+    
+    // Try to get user from currentUser or window.currentUser
+    const user = currentUser || window.currentUser;
+    
     const userInfo = document.getElementById('userInfo');
+    if (!userInfo) {
+        console.error('userInfo element not found!');
+        return;
+    }
+    
+    if (!user) {
+        console.warn('No user found');
+        userInfo.innerHTML = '<p style="color: #dc2626;">Kullanıcı bilgisi bulunamadı. Lütfen giriş yapın.</p>';
+        return;
+    }
+
+    console.log('Loading profile for user:', user);
     userInfo.innerHTML = `
-        <strong>Kullanıcı Adı:</strong> ${currentUser.username}<br>
-        <strong>Kullanıcı ID:</strong> ${currentUser.user_id}
+        <strong>Kullanıcı Adı:</strong> ${user.username || 'Bilinmiyor'}<br>
+        <strong>Kullanıcı ID:</strong> ${user.user_id || 'Bilinmiyor'}
     `;
 
     loadStats();
+    
+    // Load profile word map
+    if (typeof window.loadProfileWordMap === 'function') {
+        console.log('Calling loadProfileWordMap');
+        window.loadProfileWordMap();
+    } else {
+        console.warn('loadProfileWordMap not available yet, retrying...');
+        // If function not yet available, try again after a short delay
+        setTimeout(() => {
+            if (typeof window.loadProfileWordMap === 'function') {
+                console.log('Calling loadProfileWordMap after delay');
+                window.loadProfileWordMap();
+            } else {
+                console.error('loadProfileWordMap still not available');
+            }
+        }, 100);
+    }
 }
 
 // ===== DATA MANAGEMENT =====
@@ -2676,7 +3993,9 @@ window.submitVocabAnswer = function(answer) {
 
 // Open flashcard study modal with options
 window.openFlashcardModal = function() {
-    if (!requireLogin(() => openFlashcardModal(), 'Flashcard çalışması için giriş yapmanız gerekiyor.')) {
+    if (!currentUser || !currentUser.user_id) {
+        alert('Flashcard çalışması için giriş yapmanız gerekiyor.');
+        showLoginSection();
         return;
     }
 
@@ -2708,7 +4027,7 @@ function showFlashcardOptionsModal(modal, data) {
     
     let html = `
         <div style="background: white; width: 95%; max-width: 700px; max-height: 90vh; overflow-y: auto; padding: 30px; border-radius: 15px; position: relative;">
-            <button onclick="closeFlashcardStudyModal()" style="position: absolute; right: 15px; top: 15px; border: none; background: none; font-size: 1.5em; cursor: pointer; color: #9ca3af;">✕</button>
+            <button onclick="closeFlashcardOptionsModal()" style="position: absolute; right: 15px; top: 15px; border: none; background: none; font-size: 1.5em; cursor: pointer; color: #9ca3af;">✕</button>
             
             <h2 style="margin-bottom: 10px; color: #1f2937;">🧠 Kartla Çalış</h2>
             <p style="color: #6b7280; margin-bottom: 25px;">Çalışmak istediğiniz kelime grubunu seçin</p>
@@ -2840,7 +4159,8 @@ window.startFlashcardSession = function(type, targetId = null, targetName = null
             flashcardCurrentWord = data.current_word;
             flashcardIsFlipped = false;
             
-            closeFlashcardStudyModal();
+            // Close the options modal first
+            closeFlashcardOptionsModal();
             showFlashcardStudyModal(targetName || data.session_type, data.current_word, data.stats);
         } else {
             alert('Oturum başlatılamadı: ' + (data.message || data.error));
@@ -3015,6 +4335,7 @@ function submitFlashcardAnswer(isCorrect) {
     })
     .catch(err => console.error('Error submitting answer:', err));
 }
+window.submitFlashcardAnswer = submitFlashcardAnswer;
 
 function skipFlashcard() {
     if (!flashcardSessionId || !flashcardCurrentWord) return;
@@ -3045,6 +4366,7 @@ function skipFlashcard() {
     })
     .catch(err => console.error('Error skipping card:', err));
 }
+window.skipFlashcard = skipFlashcard;
 
 function showFlashcardCompletion(stats) {
     closeFlashcardStudyModal();
@@ -3615,6 +4937,12 @@ window.selectCustomSeriesForFlashcard = async function(series) {
         delete loadBtn.dataset.customEpisode;
     }
     
+    // Also disable transcript study button
+    const transcriptBtn = document.getElementById('openTranscriptStudyBtnFlashcard');
+    if (transcriptBtn) {
+        transcriptBtn.disabled = true;
+    }
+    
     // Hide episode info and flashcards from previous selection
     const episodeInfo = document.getElementById('episodeInfoFlashcard');
     if (episodeInfo) episodeInfo.style.display = 'none';
@@ -3649,8 +4977,10 @@ window.selectCustomSeriesForFlashcard = async function(series) {
                 // For custom series, directly enable flashcard loading on season select
                 seasonSelect.onchange = function() {
                     const loadBtn = document.getElementById('loadEpisodeFlashcardsBtnFlashcard');
+                    const transcriptBtn = document.getElementById('openTranscriptStudyBtnFlashcard');
                     if (this.value) {
                         loadBtn.disabled = false;
+                        if (transcriptBtn) transcriptBtn.disabled = false;
                         // Set custom series data on the button
                         loadBtn.dataset.customSeries = series.series_id;
                         loadBtn.dataset.customEpisode = this.value;
@@ -3665,6 +4995,7 @@ window.selectCustomSeriesForFlashcard = async function(series) {
                         }
                     } else {
                         loadBtn.disabled = true;
+                        if (transcriptBtn) transcriptBtn.disabled = true;
                         delete loadBtn.dataset.customSeries;
                         delete loadBtn.dataset.customEpisode;
                     }
@@ -3801,4 +5132,464 @@ function updateFlashcardControlsFlashcard() {
     if (nextBtn) nextBtn.disabled = window.currentFlashcardIndexFlashcard >= total - 1;
     if (markKnownBtn) markKnownBtn.disabled = false;
     if (markUnknownBtn) markUnknownBtn.disabled = false;
+}
+
+// ===== CHATBOT FUNCTIONS =====
+
+// Check chatbot status on tab switch
+document.addEventListener('DOMContentLoaded', function() {
+    // Chatbot tab removed - only floating button available
+    // Status will be checked when modal opens
+});
+
+async function checkChatbotStatus() {
+    const statusText = document.getElementById('chatbotStatusText');
+    if (!statusText) return; // Status element doesn't exist yet
+    
+    try {
+        const response = await fetch('/api/chatbot/status');
+        
+        // Check if response is JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            const text = await response.text();
+            console.error('Non-JSON response from chatbot status:', text.substring(0, 200));
+            statusText.textContent = '⚠️ Chatbot servisi yanıt vermiyor';
+            statusText.style.color = '#dc2626';
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            if (data.model_loaded) {
+                statusText.textContent = '✅ AI model aktif - Yerel AI ile çalışıyor';
+                statusText.style.color = '#059669';
+            } else {
+                statusText.textContent = 'ℹ️ Basit mod aktif - AI model yüklenemedi, kural tabanlı yanıtlar kullanılıyor';
+                statusText.style.color = '#d97706';
+            }
+        } else {
+            statusText.textContent = '⚠️ Chatbot durumu kontrol edilemedi: ' + (data.error || 'Bilinmeyen hata');
+            statusText.style.color = '#dc2626';
+        }
+    } catch (error) {
+        console.error('Error checking chatbot status:', error);
+        if (statusText) {
+            statusText.textContent = '⚠️ Bağlantı hatası: ' + error.message;
+            statusText.style.color = '#dc2626';
+        }
+    }
+}
+
+async function sendChatbotMessage() {
+    const input = document.getElementById('chatbotInput');
+    const sendBtn = document.getElementById('chatbotSendBtn');
+    const messagesContainer = document.getElementById('chatbotMessages');
+    
+    if (!input || !sendBtn || !messagesContainer) return;
+    
+    const message = input.value.trim();
+    if (!message) return;
+    
+    // Disable input and button
+    input.disabled = true;
+    sendBtn.disabled = true;
+    
+    // Add user message to chat
+    addChatMessage('user', message);
+    
+    // Clear input
+    input.value = '';
+    
+    // Show typing indicator
+    const typingId = addTypingIndicator();
+    
+    try {
+        const user_id = window.currentUser?.user_id || null;
+        
+        const response = await fetch('/api/chatbot/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message: message,
+                user_id: user_id
+            })
+        });
+        
+        const data = await response.json();
+        
+        // Remove typing indicator
+        removeTypingIndicator(typingId);
+        
+        if (data.success) {
+            addChatMessage('bot', data.response);
+        } else {
+            addChatMessage('bot', `Sorry, I encountered an error: ${data.error || 'Unknown error'}`);
+        }
+    } catch (error) {
+        console.error('Error sending message:', error);
+        removeTypingIndicator(typingId);
+        addChatMessage('bot', 'Sorry, I couldn\'t process your message. Please try again.');
+    } finally {
+        // Re-enable input and button
+        input.disabled = false;
+        sendBtn.disabled = false;
+        input.focus();
+    }
+}
+
+function addChatMessage(role, content) {
+    const messagesContainer = document.getElementById('chatbotMessages');
+    if (!messagesContainer) return;
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `chat-message ${role}-message`;
+    
+    const roleName = role === 'user' ? '👤 Sen' : '🤖 AI Öğretmen';
+    const roleColor = role === 'user' ? '#1e40af' : '#4338ca';
+    
+    messageDiv.innerHTML = `
+        <div style="font-weight: 600; color: ${roleColor}; margin-bottom: 5px;">${roleName}</div>
+        <div style="color: #1e293b; line-height: 1.6; white-space: pre-wrap;">${escapeHtml(content)}</div>
+        <div style="font-size: 0.75em; color: #64748b; margin-top: 5px;">${new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</div>
+    `;
+    
+    messagesContainer.appendChild(messageDiv);
+    
+    // Scroll to bottom
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function addTypingIndicator() {
+    const messagesContainer = document.getElementById('chatbotMessages');
+    if (!messagesContainer) return null;
+    
+    const typingId = 'typing-' + Date.now();
+    const typingDiv = document.createElement('div');
+    typingDiv.id = typingId;
+    typingDiv.className = 'chat-message bot-message';
+    typingDiv.innerHTML = `
+        <div style="font-weight: 600; color: #4338ca; margin-bottom: 5px;">🤖 AI Öğretmen</div>
+        <div style="color: #64748b; font-style: italic;">
+            <span class="typing-dots">
+                <span>.</span><span>.</span><span>.</span>
+            </span>
+        </div>
+    `;
+    
+    messagesContainer.appendChild(typingDiv);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    
+    return typingId;
+}
+
+function removeTypingIndicator(typingId) {
+    if (!typingId) return;
+    const typingElement = document.getElementById(typingId);
+    if (typingElement) {
+        typingElement.remove();
+    }
+}
+
+async function clearChatbotHistory() {
+    if (!confirm('Konuşma geçmişini temizlemek istediğinize emin misiniz?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/chatbot/clear', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            const messagesContainer = document.getElementById('chatbotMessages');
+            if (messagesContainer) {
+                // Keep only the welcome message
+                messagesContainer.innerHTML = `
+                    <div class="chat-message bot-message" style="margin-bottom: 15px; padding: 15px; background: #e0e7ff; border-radius: 12px; max-width: 80%;">
+                        <div style="font-weight: 600; color: #4338ca; margin-bottom: 5px;">🤖 AI Öğretmen</div>
+                        <div style="color: #1e293b; line-height: 1.6;">
+                            Hello! I'm your English learning assistant. I'm here to help you improve your English! 
+                            You can ask me about:
+                            <ul style="margin: 10px 0; padding-left: 20px;">
+                                <li>Grammar rules and explanations</li>
+                                <li>Vocabulary and word meanings</li>
+                                <li>Practice conversations</li>
+                                <li>Pronunciation tips</li>
+                                <li>English learning strategies</li>
+                            </ul>
+                            What would you like to learn today?
+                        </div>
+                    </div>
+                `;
+            }
+            showNotification('Konuşma geçmişi temizlendi', 'success');
+        } else {
+            showNotification('Geçmiş temizlenemedi: ' + (data.error || 'Bilinmeyen hata'), 'error');
+        }
+    } catch (error) {
+        console.error('Error clearing history:', error);
+        showNotification('Bağlantı hatası', 'error');
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// ===== CHATBOT MODAL FUNCTIONS =====
+
+function openChatbotModal() {
+    const modal = document.getElementById('chatbotModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        // Focus on input
+        setTimeout(() => {
+            const input = document.getElementById('chatbotModalInput');
+            if (input) input.focus();
+        }, 100);
+        // Check status when modal opens
+        checkChatbotModalStatus();
+    }
+}
+
+function closeChatbotModal() {
+    const modal = document.getElementById('chatbotModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+if (typeof window !== 'undefined') {
+    window.openChatbotModal = openChatbotModal;
+    window.closeChatbotModal = closeChatbotModal;
+}
+
+// Close modal when clicking outside
+document.addEventListener('DOMContentLoaded', function() {
+    const chatbotModal = document.getElementById('chatbotModal');
+    if (chatbotModal) {
+        chatbotModal.addEventListener('click', function(e) {
+            if (e.target === chatbotModal) {
+                closeChatbotModal();
+            }
+        });
+    }
+    
+    // Chatbot floating button her zaman görünür
+    const floatingBtn = document.getElementById('floatingChatbotBtn');
+    if (floatingBtn) {
+        floatingBtn.style.display = 'flex';
+    }
+});
+
+async function checkChatbotModalStatus() {
+    const statusText = document.getElementById('chatbotModalStatusText');
+    if (!statusText) return;
+    
+    try {
+        const response = await fetch('/api/chatbot/status');
+        
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            const text = await response.text();
+            console.error('Non-JSON response from chatbot status:', text.substring(0, 200));
+            statusText.textContent = '⚠️ Chatbot servisi yanıt vermiyor';
+            statusText.style.color = '#dc2626';
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            if (data.model_loaded) {
+                statusText.textContent = '✅ AI model aktif - Yerel AI ile çalışıyor';
+                statusText.style.color = '#059669';
+            } else {
+                statusText.textContent = 'ℹ️ Basit mod aktif - Kural tabanlı yanıtlar kullanılıyor';
+                statusText.style.color = '#d97706';
+            }
+        } else {
+            statusText.textContent = '⚠️ Chatbot durumu kontrol edilemedi: ' + (data.error || 'Bilinmeyen hata');
+            statusText.style.color = '#dc2626';
+        }
+    } catch (error) {
+        console.error('Error checking chatbot status:', error);
+        if (statusText) {
+            statusText.textContent = '⚠️ Bağlantı hatası: ' + error.message;
+            statusText.style.color = '#dc2626';
+        }
+    }
+}
+
+async function sendChatbotModalMessage() {
+    const input = document.getElementById('chatbotModalInput');
+    const sendBtn = document.getElementById('chatbotModalSendBtn');
+    const messagesContainer = document.getElementById('chatbotModalMessages');
+    
+    if (!input || !sendBtn || !messagesContainer) return;
+    
+    const message = input.value.trim();
+    if (!message) return;
+    
+    // Disable input and button
+    input.disabled = true;
+    sendBtn.disabled = true;
+    
+    // Add user message to chat
+    addChatModalMessage('user', message);
+    
+    // Clear input
+    input.value = '';
+    
+    // Show typing indicator
+    const typingId = addChatModalTypingIndicator();
+    
+    try {
+        const user_id = window.currentUser?.user_id || null;
+        
+        const response = await fetch('/api/chatbot/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message: message,
+                user_id: user_id
+            })
+        });
+        
+        const data = await response.json();
+        
+        // Remove typing indicator
+        removeChatModalTypingIndicator(typingId);
+        
+        if (data.success) {
+            addChatModalMessage('bot', data.response);
+        } else {
+            addChatModalMessage('bot', `Sorry, I encountered an error: ${data.error || 'Unknown error'}`);
+        }
+    } catch (error) {
+        console.error('Error sending message:', error);
+        removeChatModalTypingIndicator(typingId);
+        addChatModalMessage('bot', 'Sorry, I couldn\'t process your message. Please try again.');
+    } finally {
+        // Re-enable input and button
+        input.disabled = false;
+        sendBtn.disabled = false;
+        input.focus();
+    }
+}
+
+function addChatModalMessage(role, content) {
+    const messagesContainer = document.getElementById('chatbotModalMessages');
+    if (!messagesContainer) return;
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `chat-message ${role}-message`;
+    
+    const roleName = role === 'user' ? '👤 Sen' : '🤖 AI Öğretmen';
+    const roleColor = role === 'user' ? '#1e40af' : '#4338ca';
+    const alignStyle = role === 'user' ? 'margin-left: auto;' : '';
+    
+    messageDiv.style.cssText = `margin-bottom: 15px; padding: 15px; background: ${role === 'user' ? '#dbeafe' : '#e0e7ff'}; border-radius: 12px; max-width: 80%; ${alignStyle}`;
+    
+    messageDiv.innerHTML = `
+        <div style="font-weight: 600; color: ${roleColor}; margin-bottom: 5px;">${roleName}</div>
+        <div style="color: #1e293b; line-height: 1.6; white-space: pre-wrap;">${escapeHtml(content)}</div>
+        <div style="font-size: 0.75em; color: #64748b; margin-top: 5px;">${new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</div>
+    `;
+    
+    messagesContainer.appendChild(messageDiv);
+    
+    // Scroll to bottom
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function addChatModalTypingIndicator() {
+    const messagesContainer = document.getElementById('chatbotModalMessages');
+    if (!messagesContainer) return null;
+    
+    const typingId = 'typing-modal-' + Date.now();
+    const typingDiv = document.createElement('div');
+    typingDiv.id = typingId;
+    typingDiv.className = 'chat-message bot-message';
+    typingDiv.style.cssText = 'margin-bottom: 15px; padding: 15px; background: #e0e7ff; border-radius: 12px; max-width: 80%;';
+    typingDiv.innerHTML = `
+        <div style="font-weight: 600; color: #4338ca; margin-bottom: 5px;">🤖 AI Öğretmen</div>
+        <div style="color: #64748b; font-style: italic;">
+            <span class="typing-dots">
+                <span>.</span><span>.</span><span>.</span>
+            </span>
+        </div>
+    `;
+    
+    messagesContainer.appendChild(typingDiv);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    
+    return typingId;
+}
+
+function removeChatModalTypingIndicator(typingId) {
+    if (!typingId) return;
+    const typingElement = document.getElementById(typingId);
+    if (typingElement) {
+        typingElement.remove();
+    }
+}
+
+async function clearChatbotModalHistory() {
+    if (!confirm('Konuşma geçmişini temizlemek istediğinize emin misiniz?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/chatbot/clear', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            const messagesContainer = document.getElementById('chatbotModalMessages');
+            if (messagesContainer) {
+                // Keep only the welcome message
+                messagesContainer.innerHTML = `
+                    <div class="chat-message bot-message" style="margin-bottom: 15px; padding: 15px; background: #e0e7ff; border-radius: 12px; max-width: 80%;">
+                        <div style="font-weight: 600; color: #4338ca; margin-bottom: 5px;">🤖 AI Öğretmen</div>
+                        <div style="color: #1e293b; line-height: 1.6;">
+                            Hello! I'm your English learning assistant. I'm here to help you improve your English! 
+                            You can ask me about:
+                            <ul style="margin: 10px 0; padding-left: 20px;">
+                                <li>Grammar rules and explanations</li>
+                                <li>Vocabulary and word meanings</li>
+                                <li>Practice conversations</li>
+                                <li>Pronunciation tips</li>
+                                <li>English learning strategies</li>
+                            </ul>
+                            What would you like to learn today?
+                        </div>
+                    </div>
+                `;
+            }
+            showNotification('Konuşma geçmişi temizlendi', 'success');
+        } else {
+            showNotification('Geçmiş temizlenemedi: ' + (data.error || 'Bilinmeyen hata'), 'error');
+        }
+    } catch (error) {
+        console.error('Error clearing history:', error);
+        showNotification('Bağlantı hatası', 'error');
+    }
 }

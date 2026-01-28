@@ -4,12 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Watch Together - Film İzle Beraber</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=4">
     <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
-    <div class="container">
-        <header>
+    <div class="container" style="padding-top: 60px;">
+        <header style="position: relative; overflow: visible;">
             <h1>🎬 Watch Together - Film İzle Beraber</h1>
             <p>Arkadaşlarınızla beraber film izleyin, sohbet edin ve ekran paylaşın</p>
         </header>
@@ -224,7 +224,7 @@
                     <div class="card" id="episodeSelectionCard" style="display: none;">
                         <h2 id="selectedSeriesTitle">📺 Bölüm Seçimi</h2>
                         
-                        <div style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
+                        <div style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; align-items: center;">
                             <select id="seriesSeasonSelect" style="padding: 10px; border-radius: 8px; border: 1px solid #ddd; min-width: 150px;">
                                 <option value="">Sezon Seçin</option>
                             </select>
@@ -234,6 +234,15 @@
                             <button id="loadEpisodeFlashcardsBtn" class="btn btn-primary" disabled>
                                 🧠 Flash Kartları Getir
                             </button>
+                            <button id="openTranscriptStudyBtn" class="btn btn-secondary" disabled onclick="openTranscriptStudyMode()">
+                                📖 Transkript Üzerinden Çalış
+                            </button>
+                            <button id="downloadTranscriptsBtn" class="btn btn-secondary" disabled onclick="downloadSeasonTranscripts()" title="Bu sezonun tüm transkriptlerini indir">
+                                ⬇️ Transkriptleri İndir
+                            </button>
+                        </div>
+                        <div id="downloadProgress" style="display: none; padding: 10px; background: #fef3c7; border-radius: 8px; margin-bottom: 15px;">
+                            <span id="downloadProgressText">İndiriliyor...</span>
                         </div>
 
                         <!-- Episode Info -->
@@ -365,6 +374,9 @@
                                 </select>
                                 <button id="loadEpisodeFlashcardsBtnFlashcard" class="btn btn-primary" disabled>
                                     🧠 Flash Kartları Getir
+                                </button>
+                                <button id="openTranscriptStudyBtnFlashcard" class="btn btn-secondary" disabled onclick="openTranscriptStudyMode()">
+                                    📖 Transkript Üzerinden Çalış
                                 </button>
                             </div>
 
@@ -513,20 +525,11 @@
                         <p style="color: #666; font-size: 0.9em; margin-bottom: 15px;">Oluşturulan altyazı veritabanlarının kelime istatistikleri</p>
 
                         <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; align-items: center;">
-                            <select id="subtitleDbSeason" style="padding: 8px; border-radius: 4px; border: 1px solid #ddd;">
+                            <select id="subtitleDbSeason" style="padding: 8px; border-radius: 4px; border: 1px solid #ddd; min-width: 200px;">
                                 <option value="">Tüm Klasörler</option>
-                                <option value="Friends1">Friends 1</option>
-                                <option value="Friends2">Friends 2</option>
-                                <option value="Friends3">Friends 3</option>
-                                <option value="Friends4">Friends 4</option>
-                                <option value="Friends5">Friends 5</option>
-                                <option value="Friends6">Friends 6</option>
-                                <option value="Friends7">Friends 7</option>
-                                <option value="Friends8">Friends 8</option>
-                                <option value="Friends9">Friends 9</option>
-                                <option value="Friends10">Friends 10</option>
                             </select>
                             <button id="loadSubtitleDbStatsBtn" class="btn btn-primary">📊 İstatistikleri Getir</button>
+                            <button id="refreshFoldersBtn" class="btn btn-secondary" title="Klasörleri Yenile">🔄</button>
                             <span id="subtitleDbStatsStatus" style="display: none; color: #666;">
                                 <span class="spinner"></span> Yükleniyor...
                             </span>
@@ -540,6 +543,10 @@
                                     <div style="font-size: 0.8em; color: #6b7280;">Veritabanı</div>
                                 </div>
                                 <div>
+                                    <div style="font-size: 1.5em; font-weight: bold; color: #7c3aed;" id="subtitleDbFolders">0</div>
+                                    <div style="font-size: 0.8em; color: #6b7280;">Klasör</div>
+                                </div>
+                                <div>
                                     <div style="font-size: 1.5em; font-weight: bold; color: #7c3aed;" id="subtitleDbUniqueWords">0</div>
                                     <div style="font-size: 0.8em; color: #6b7280;">Benzersiz Kelime</div>
                                 </div>
@@ -550,11 +557,19 @@
                             </div>
                         </div>
 
+                        <!-- Folders List -->
+                        <div id="subtitleDbFoldersList" style="display: none; margin-bottom: 20px;">
+                            <h3 style="margin-bottom: 10px; font-size: 1.1em; color: #374151;">📁 Klasörler</h3>
+                            <div id="foldersContainer" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px;"></div>
+                        </div>
+
                         <!-- Database List -->
                         <div id="subtitleDbList" style="display: none; max-height: 400px; overflow-y: auto;">
+                            <h3 style="margin-bottom: 10px; font-size: 1.1em; color: #374151;">💾 Veritabanları</h3>
                             <table style="width: 100%; border-collapse: collapse; font-size: 0.85em;">
                                 <thead style="background: #f3f4f6;">
                                     <tr>
+                                        <th style="padding: 10px; text-align: left; border-bottom: 2px solid #e5e7eb;">Klasör</th>
                                         <th style="padding: 10px; text-align: left; border-bottom: 2px solid #e5e7eb;">Veritabanı</th>
                                         <th style="padding: 10px; text-align: right; border-bottom: 2px solid #e5e7eb;">Benzersiz</th>
                                         <th style="padding: 10px; text-align: right; border-bottom: 2px solid #e5e7eb;">Toplam</th>
@@ -678,86 +693,181 @@
         // Make Google Client ID available to JavaScript
         window.GOOGLE_CLIENT_ID = "{{ google_client_id }}";
     </script>
-    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}?v=4"></script>
     <script>
         // İstatistikleri Getir Butonu İşlevselliği
         document.addEventListener('DOMContentLoaded', () => {
             const loadStatsBtn = document.getElementById('loadSubtitleDbStatsBtn');
-            if (loadStatsBtn) {
-                loadStatsBtn.addEventListener('click', async () => {
-                    const seasonSelect = document.getElementById('subtitleDbSeason');
-                    const statusSpan = document.getElementById('subtitleDbStatsStatus');
-                    const summaryDiv = document.getElementById('subtitleDbStatsSummary');
-                    const listDiv = document.getElementById('subtitleDbList');
-                    const tbody = document.getElementById('subtitleDbBody');
-                    const errorDiv = document.getElementById('subtitleDbStatsError');
+            const refreshFoldersBtn = document.getElementById('refreshFoldersBtn');
+            const seasonSelect = document.getElementById('subtitleDbSeason');
+            
+            // Klasörleri yükle
+            async function loadFolders() {
+                try {
+                    const response = await fetch('/api/subtitles/stats?path=');
+                    const data = await response.json();
                     
-                    // UI Sıfırla
-                    statusSpan.style.display = 'inline';
-                    summaryDiv.style.display = 'none';
-                    listDiv.style.display = 'none';
-                    errorDiv.style.display = 'none';
-                    tbody.innerHTML = '';
+                    if (data.success && data.folders) {
+                        // Dropdown'u güncelle
+                        seasonSelect.innerHTML = '<option value="">Tüm Klasörler</option>';
+                        data.folders.forEach(folder => {
+                            const option = document.createElement('option');
+                            option.value = folder.path;
+                            option.textContent = `${folder.name} (${folder.db_count} DB)`;
+                            seasonSelect.appendChild(option);
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error loading folders:', error);
+                }
+            }
+            
+            // İstatistikleri yükle
+            async function loadStats() {
+                const statusSpan = document.getElementById('subtitleDbStatsStatus');
+                const summaryDiv = document.getElementById('subtitleDbStatsSummary');
+                const foldersListDiv = document.getElementById('subtitleDbFoldersList');
+                const listDiv = document.getElementById('subtitleDbList');
+                const tbody = document.getElementById('subtitleDbBody');
+                const foldersContainer = document.getElementById('foldersContainer');
+                const errorDiv = document.getElementById('subtitleDbStatsError');
+                
+                // UI Sıfırla
+                statusSpan.style.display = 'inline';
+                summaryDiv.style.display = 'none';
+                foldersListDiv.style.display = 'none';
+                listDiv.style.display = 'none';
+                errorDiv.style.display = 'none';
+                tbody.innerHTML = '';
+                foldersContainer.innerHTML = '';
+                
+                const path = seasonSelect.value;
+                
+                try {
+                    const response = await fetch(`/api/subtitles/stats?path=${encodeURIComponent(path)}`);
+                    const data = await response.json();
                     
-                    const path = seasonSelect.value;
-                    
-                    try {
-                        const response = await fetch(`/api/subtitles/stats?path=${encodeURIComponent(path)}`);
-                        const data = await response.json();
+                    if (data.success) {
+                        // Özeti Güncelle
+                        document.getElementById('subtitleDbCount').textContent = data.summary.total_databases;
+                        document.getElementById('subtitleDbFolders').textContent = data.summary.total_folders || 0;
+                        document.getElementById('subtitleDbUniqueWords').textContent = data.summary.total_unique_words.toLocaleString('tr-TR');
+                        document.getElementById('subtitleDbTotalWords').textContent = data.summary.total_words.toLocaleString('tr-TR');
                         
-                        if (data.success) {
-                            // Özeti Güncelle
-                            document.getElementById('subtitleDbCount').textContent = data.summary.total_databases;
-                            document.getElementById('subtitleDbUniqueWords').textContent = data.summary.total_unique_words.toLocaleString('tr-TR');
-                            document.getElementById('subtitleDbTotalWords').textContent = data.summary.total_words.toLocaleString('tr-TR');
-                            
-                            summaryDiv.style.display = 'block';
-                            
-                            // Tabloyu Güncelle
-                            if (data.databases && data.databases.length > 0) {
-                                data.databases.forEach(db => {
-                                    const row = document.createElement('tr');
-                                    row.innerHTML = `
-                                        <td style="padding: 10px; border-bottom: 1px solid #eee;">${db.name}</td>
-                                        <td style="padding: 10px; text-align: right; border-bottom: 1px solid #eee;">${db.unique_words.toLocaleString('tr-TR')}</td>
-                                        <td style="padding: 10px; text-align: right; border-bottom: 1px solid #eee;">${db.total_words.toLocaleString('tr-TR')}</td>
-                                        <td style="padding: 10px; text-align: center; border-bottom: 1px solid #eee;">
-                                            <button class="btn btn-sm btn-secondary" onclick="alert('Detay özelliği yakında eklenecek: ${db.name}')">Detay</button>
-                                        </td>
-                                    `;
-                                    tbody.appendChild(row);
-                                });
-                                listDiv.style.display = 'block';
-                            } else {
-                                errorDiv.textContent = 'Bu klasörde veritabanı bulunamadı.';
-                                errorDiv.style.display = 'block';
-                            }
+                        summaryDiv.style.display = 'block';
+                        
+                        // Klasörleri göster (sadece tüm klasörler görünümünde)
+                        if (!path && data.folders && data.folders.length > 0) {
+                            data.folders.forEach(folder => {
+                                const folderCard = document.createElement('div');
+                                folderCard.style.cssText = 'padding: 15px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; transition: all 0.2s;';
+                                folderCard.style.cursor = 'pointer';
+                                folderCard.onmouseover = () => folderCard.style.background = '#f3f4f6';
+                                folderCard.onmouseout = () => folderCard.style.background = '#f9fafb';
+                                folderCard.onclick = () => {
+                                    seasonSelect.value = folder.path;
+                                    loadStats();
+                                };
+                                
+                                folderCard.innerHTML = `
+                                    <div style="font-weight: 600; color: #374151; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+                                        <span>📁</span>
+                                        <span>${folder.name || 'Root'}</span>
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; font-size: 0.85em;">
+                                        <div style="text-align: center;">
+                                            <div style="font-weight: bold; color: #15803d;">${folder.db_count}</div>
+                                            <div style="color: #6b7280; font-size: 0.8em;">DB</div>
+                                        </div>
+                                        <div style="text-align: center;">
+                                            <div style="font-weight: bold; color: #7c3aed;">${folder.unique_words.toLocaleString('tr-TR')}</div>
+                                            <div style="color: #6b7280; font-size: 0.8em;">Benzersiz</div>
+                                        </div>
+                                        <div style="text-align: center;">
+                                            <div style="font-weight: bold; color: #0369a1;">${folder.total_words.toLocaleString('tr-TR')}</div>
+                                            <div style="color: #6b7280; font-size: 0.8em;">Toplam</div>
+                                        </div>
+                                    </div>
+                                `;
+                                foldersContainer.appendChild(folderCard);
+                            });
+                            foldersListDiv.style.display = 'block';
+                        }
+                        
+                        // Veritabanlarını göster
+                        if (data.databases && data.databases.length > 0) {
+                            data.databases.forEach(db => {
+                                const row = document.createElement('tr');
+                                const folderName = db.folder ? db.folder.split('/').pop() || db.folder : 'Root';
+                                row.innerHTML = `
+                                    <td style="padding: 10px; border-bottom: 1px solid #eee; color: #6b7280; font-size: 0.85em;">${folderName}</td>
+                                    <td style="padding: 10px; border-bottom: 1px solid #eee;">${db.name}</td>
+                                    <td style="padding: 10px; text-align: right; border-bottom: 1px solid #eee;">${db.unique_words.toLocaleString('tr-TR')}</td>
+                                    <td style="padding: 10px; text-align: right; border-bottom: 1px solid #eee;">${db.total_words.toLocaleString('tr-TR')}</td>
+                                    <td style="padding: 10px; text-align: center; border-bottom: 1px solid #eee;">
+                                        <button class="btn btn-sm btn-secondary" onclick="alert('Detay özelliği yakında eklenecek: ${db.name}')">Detay</button>
+                                    </td>
+                                `;
+                                tbody.appendChild(row);
+                            });
+                            listDiv.style.display = 'block';
                         } else {
-                            errorDiv.textContent = data.error || 'Veriler alınırken bir hata oluştu.';
+                            errorDiv.textContent = 'Bu klasörde veritabanı bulunamadı.';
                             errorDiv.style.display = 'block';
                         }
-                    } catch (error) {
-                        console.error('Error fetching stats:', error);
-                        errorDiv.textContent = 'Sunucu hatası: ' + error.message;
+                    } else {
+                        errorDiv.textContent = data.error || 'Veriler alınırken bir hata oluştu.';
                         errorDiv.style.display = 'block';
-                    } finally {
-                        statusSpan.style.display = 'none';
                     }
+                } catch (error) {
+                    console.error('Error fetching stats:', error);
+                    errorDiv.textContent = 'Sunucu hatası: ' + error.message;
+                    errorDiv.style.display = 'block';
+                } finally {
+                    statusSpan.style.display = 'none';
+                }
+            }
+            
+            // Event listeners
+            if (loadStatsBtn) {
+                loadStatsBtn.addEventListener('click', loadStats);
+            }
+            
+            if (refreshFoldersBtn) {
+                refreshFoldersBtn.addEventListener('click', () => {
+                    loadFolders().then(() => loadStats());
                 });
             }
+            
+            if (seasonSelect) {
+                seasonSelect.addEventListener('change', loadStats);
+            }
+            
+            // Sayfa yüklendiğinde klasörleri ve istatistikleri yükle
+            loadFolders().then(() => loadStats());
         });
 
         // Profil Kelime Haritası ve İstatistikleri
         async function loadProfileWordMap() {
-            const userId = localStorage.getItem('user_id');
-            if (!userId) return;
-
+            let userId = localStorage.getItem('user_id');
+            if (!userId && window.currentUser && window.currentUser.user_id) {
+                userId = String(window.currentUser.user_id);
+            }
+            
             const mapContainer = document.getElementById('wordCategoryMap');
             const statsContainer = document.getElementById('wordStats');
             
+            if (!mapContainer) {
+                console.warn('wordCategoryMap container not found');
+                return;
+            }
+            
             // Her zaman yükleniyor göster
-            if (mapContainer) {
-                mapContainer.innerHTML = '<div style="text-align:center; padding:20px;"><div class="spinner"></div><p>Veriler yükleniyor...</p></div>';
+            mapContainer.innerHTML = '<div style="text-align:center; padding:20px;"><div class="spinner"></div><p>Veriler yükleniyor...</p></div>';
+            
+            if (!userId) {
+                mapContainer.innerHTML = '<div style="text-align:center; padding:20px; color:#666;"><p>Kullanıcı ID bulunamadı. Lütfen giriş yapın.</p></div>';
+                return;
             }
 
             try {
@@ -766,20 +876,24 @@
                 const data = await response.json();
 
                 if (data.success) {
-                    renderWordStats(data.summary);
+                    if (data.summary) {
+                        renderWordStats(data.summary);
+                    }
                     if (data.levels && data.levels.length > 0) {
                         renderLevels(data.levels, data.progress);
                     } else {
-                        if (mapContainer) {
-                            mapContainer.innerHTML = '<div style="text-align:center; padding:20px; color:#666;"><p>Henüz kelime seviyesi oluşturulmamış.</p><p>Lütfen "Film İzle" sekmesinden bir dizi seçip "Kelime Haritası Oluştur" butonuna tıklayarak kelime havuzunu oluşturun.</p></div>';
-                        }
+                        mapContainer.innerHTML = '<div style="text-align:center; padding:20px; color:#666;"><p>Henüz kelime seviyesi oluşturulmamış.</p><p>Lütfen "Film İzle" sekmesinden bir dizi seçip "Kelime Haritası Oluştur" butonuna tıklayarak kelime havuzunu oluşturun.</p></div>';
                     }
+                } else {
+                    mapContainer.innerHTML = '<p style="color:red; text-align:center;">Veriler yüklenirken hata oluştu: ' + (data.error || 'Bilinmeyen hata') + '</p>';
                 }
             } catch (error) {
                 console.error('Error loading word map:', error);
-                if (mapContainer) mapContainer.innerHTML = '<p style="color:red; text-align:center;">Veriler yüklenirken hata oluştu.</p>';
+                mapContainer.innerHTML = '<p style="color:red; text-align:center;">Veriler yüklenirken hata oluştu: ' + error.message + '</p>';
             }
         }
+        // Make loadProfileWordMap globally accessible
+        window.loadProfileWordMap = loadProfileWordMap;
 
         function renderWordStats(summary) {
             const container = document.getElementById('wordStats');
@@ -848,40 +962,39 @@
             container.innerHTML = html;
         }
 
-        // Tab değişimi dinleyicisi
+        // Tab değişimi dinleyicisi – profil tıklanınca önce sekmeyi aç, sonra kelime haritasını yükle
+        // Note: loadProfileWordMap is now called automatically by switchTab function
         document.addEventListener('DOMContentLoaded', () => {
-            const profileBtn = document.querySelector('.tab-btn[data-tab="profile"]');
-            if (profileBtn) {
-                profileBtn.addEventListener('click', loadProfileWordMap);
-            }
-        });
-
-        // ===== SERİS SEÇİMİ VE EPİZOD FLASHCARD İŞLEVLERİ =====
-
-        // Dizi posterlerine tıklama (sadece poster alanına, butona değil)
-        document.querySelectorAll('.series-card').forEach(card => {
-            const button = card.querySelector('button');
-            const checkbox = card.querySelector('.series-checkbox');
             
-            card.addEventListener('click', (e) => {
-                // Eğer butona, checkbox'a veya label'a tıklandıysa, selectSeries çağırma
-                if (e.target === button || button?.contains(e.target) || 
-                    e.target === checkbox || e.target.closest('label') ||
-                    e.target.type === 'checkbox') {
-                    return;
-                }
-                const series = card.dataset.series;
-                if (series) {
-                    selectSeries(series);
-                }
-            });
+            // ===== SERİS SEÇİMİ VE EPİZOD FLASHCARD İŞLEVLERİ =====
+
+            // Dizi posterlerine tıklama (sadece poster alanına, butona değil)
+            const seriesCards = document.querySelectorAll('.series-card');
             
-            // Hover efekti
-            card.addEventListener('mouseenter', () => {
-                card.style.transform = 'scale(1.05)';
-            });
-            card.addEventListener('mouseleave', () => {
-                card.style.transform = 'scale(1)';
+            seriesCards.forEach(card => {
+                const button = card.querySelector('button');
+                const checkbox = card.querySelector('.series-checkbox');
+                
+                card.addEventListener('click', (e) => {
+                    // Eğer butona, checkbox'a veya label'a tıklandıysa, selectSeries çağırma
+                    if (e.target === button || button?.contains(e.target) || 
+                        e.target === checkbox || e.target.closest('label') ||
+                        e.target.type === 'checkbox') {
+                        return;
+                    }
+                    const series = card.dataset.series;
+                    if (series) {
+                        selectSeries(series);
+                    }
+                });
+                
+                // Hover efekti
+                card.addEventListener('mouseenter', () => {
+                    card.style.transform = 'scale(1.05)';
+                });
+                card.addEventListener('mouseleave', () => {
+                    card.style.transform = 'scale(1)';
+                });
             });
         });
 
@@ -967,6 +1080,10 @@
             document.getElementById('loadEpisodeFlashcardsBtnFlashcard').disabled = true;
             document.getElementById('loadEpisodeFlashcardsBtnFlashcard').dataset.series = series;
             
+            // Transcript butonunu da devre dışı bırak
+            const transcriptBtnFlashcard = document.getElementById('openTranscriptStudyBtnFlashcard');
+            if (transcriptBtnFlashcard) transcriptBtnFlashcard.disabled = true;
+            
             // Bölüm bilgisi ve flashcard alanlarını gizle
             document.getElementById('episodeInfoFlashcard').style.display = 'none';
             document.getElementById('flashcardsSectionFlashcard').style.display = 'none';
@@ -986,6 +1103,8 @@
                 episodeSelect.innerHTML = '<option value="">Önce Sezon Seçin</option>';
                 episodeSelect.disabled = true;
                 document.getElementById('loadEpisodeFlashcardsBtnFlashcard').disabled = true;
+                const transcriptBtnFlashcard = document.getElementById('openTranscriptStudyBtnFlashcard');
+                if (transcriptBtnFlashcard) transcriptBtnFlashcard.disabled = true;
                 return;
             }
             
@@ -1014,6 +1133,7 @@
         document.getElementById('seriesEpisodeSelectFlashcard').addEventListener('change', function() {
             const episode = this.value;
             const loadBtn = document.getElementById('loadEpisodeFlashcardsBtnFlashcard');
+            const transcriptBtn = document.getElementById('openTranscriptStudyBtnFlashcard');
             const series = document.getElementById('loadEpisodeFlashcardsBtnFlashcard').dataset.series;
             const season = document.getElementById('seriesSeasonSelectFlashcard').value;
             
@@ -1022,8 +1142,15 @@
                 loadBtn.dataset.series = series;
                 loadBtn.dataset.season = season;
                 loadBtn.dataset.episode = episode;
+                // Transcript butonunu da enable et
+                if (transcriptBtn) {
+                    transcriptBtn.disabled = false;
+                }
             } else {
                 loadBtn.disabled = true;
+                if (transcriptBtn) {
+                    transcriptBtn.disabled = true;
+                }
             }
         });
 
@@ -1360,6 +1487,10 @@
                 updateCardBorder(this);
             });
         });
+        
+        // Sayfa yüklendiğinde başlangıç durumunu ayarla
+        updateBuildButton();
+        updateSelectedSeriesText();
 
         // Kart border'ını güncelle
         function updateCardBorder(checkbox) {
@@ -1381,7 +1512,12 @@
             if (selected.length === 0) {
                 textDiv.textContent = 'Lütfen en az bir dizi seçin';
             } else {
-                const seriesNames = selected.map(s => s === 'friends' ? 'Friends' : 'Big Bang Theory');
+                const seriesNames = selected.map(s => {
+                    if (s === 'friends') return 'Friends';
+                    if (s === 'bigbang') return 'Big Bang Theory';
+                    // Custom series için ID'yi daha okunabilir hale getir
+                    return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                });
                 textDiv.textContent = `Seçili: ${seriesNames.join(', ')}`;
             }
         }
@@ -1413,7 +1549,7 @@
             const wordMapDiv = document.getElementById('seriesWordMap');
             
             statusDiv.style.display = 'block';
-            statusText.innerHTML = '<span class="spinner"></span> Kelime haritası oluşturuluyor ve tüm kelimeler otomatik çevriliyor... Bu işlem birkaç dakika sürebilir.';
+            statusText.innerHTML = '<span class="spinner"></span> Kelime haritası oluşturuluyor... Bu işlem birkaç saniye sürebilir.';
             wordMapDiv.style.display = 'none';
             
             try {
@@ -1426,9 +1562,11 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    let message = `✅ Kelime haritası oluşturuldu: ${data.unique_words} kelime, ${data.packages_created} seviye`;
+                    let message = `✅ Kelime haritası oluşturuldu: ${data.unique_words.toLocaleString()} kelime, ${data.packages_created} seviye`;
                     if (data.translated_count && data.translated_count > 0) {
-                        message += `<br>🤖 <strong>${data.translated_count}</strong> kelime otomatik olarak Türkçeye çevrildi!`;
+                        message += `<br>🤖 <strong>${data.translated_count}</strong> kelime çevrildi!`;
+                    } else {
+                        message += `<br>💡 Kelimeleri çevirmek için aşağıdaki seviyelerden "Çevir" butonunu kullanın.`;
                     }
                     statusText.innerHTML = message;
                     statusText.style.color = '#15803d';
@@ -1528,6 +1666,61 @@
             }
         }
 
+        // Sezon transkriptlerini indirme fonksiyonu
+        window.downloadSeasonTranscripts = async function() {
+            const downloadBtn = document.getElementById('downloadTranscriptsBtn');
+            const progressDiv = document.getElementById('downloadProgress');
+            const progressText = document.getElementById('downloadProgressText');
+            
+            const series = downloadBtn.dataset.series;
+            const season = downloadBtn.dataset.season;
+            
+            if (!series || !season) {
+                alert('Lütfen önce bir sezon seçin!');
+                return;
+            }
+            
+            // Show progress
+            downloadBtn.disabled = true;
+            downloadBtn.textContent = '⏳ İndiriliyor...';
+            progressDiv.style.display = 'block';
+            progressText.textContent = `${series === 'friends' ? 'Friends' : 'Big Bang Theory'} Sezon ${season} transkriptleri indiriliyor...`;
+            
+            try {
+                const response = await fetch(`/api/series/${series}/download-transcripts`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ season: parseInt(season) })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    progressDiv.style.background = '#d1fae5';
+                    progressText.innerHTML = `✅ ${data.message}`;
+                    
+                    if (data.failed && data.failed.length > 0) {
+                        progressText.innerHTML += `<br><small style="color: #dc2626;">Başarısız bölümler: ${data.failed.join(', ')}</small>`;
+                    }
+                } else {
+                    progressDiv.style.background = '#fee2e2';
+                    progressText.textContent = `❌ Hata: ${data.error}`;
+                }
+            } catch (error) {
+                progressDiv.style.background = '#fee2e2';
+                progressText.textContent = `❌ Bağlantı hatası: ${error.message}`;
+            }
+            
+            downloadBtn.disabled = false;
+            downloadBtn.textContent = '⬇️ Transkriptleri İndir';
+            
+            // Hide progress after 10 seconds
+            setTimeout(() => {
+                progressDiv.style.display = 'none';
+                progressDiv.style.background = '#fef3c7';
+            }, 10000);
+        }
+
         function selectSeries(series) {
             const episodeSelectionCard = document.getElementById('episodeSelectionCard');
             const seriesTitle = document.getElementById('selectedSeriesTitle');
@@ -1592,6 +1785,14 @@
             document.getElementById('loadEpisodeFlashcardsBtn').disabled = true;
             document.getElementById('loadEpisodeFlashcardsBtn').dataset.series = series;
             
+            // Transcript study butonunu da devre dışı bırak
+            const transcriptBtn = document.getElementById('openTranscriptStudyBtn');
+            if (transcriptBtn) transcriptBtn.disabled = true;
+            
+            // Download butonunu da devre dışı bırak
+            const downloadBtn = document.getElementById('downloadTranscriptsBtn');
+            if (downloadBtn) downloadBtn.disabled = true;
+            
             // Bölüm bilgisi ve flashcard alanlarını gizle
             document.getElementById('episodeInfo').style.display = 'none';
             document.getElementById('flashcardsSection').style.display = 'none';
@@ -1606,12 +1807,23 @@
             const season = this.value;
             const series = document.getElementById('loadEpisodeFlashcardsBtn').dataset.series;
             const episodeSelect = document.getElementById('seriesEpisodeSelect');
+            const transcriptBtn = document.getElementById('openTranscriptStudyBtn');
+            const downloadBtn = document.getElementById('downloadTranscriptsBtn');
             
             if (!season) {
                 episodeSelect.innerHTML = '<option value="">Önce Sezon Seçin</option>';
                 episodeSelect.disabled = true;
                 document.getElementById('loadEpisodeFlashcardsBtn').disabled = true;
+                if (transcriptBtn) transcriptBtn.disabled = true;
+                if (downloadBtn) downloadBtn.disabled = true;
                 return;
+            }
+            
+            // Enable download button when season is selected
+            if (downloadBtn) {
+                downloadBtn.disabled = false;
+                downloadBtn.dataset.series = series;
+                downloadBtn.dataset.season = season;
             }
             
             // Statik bölüm sayıları
@@ -1639,16 +1851,19 @@
         document.getElementById('seriesEpisodeSelect').addEventListener('change', function() {
             const episode = this.value;
             const loadBtn = document.getElementById('loadEpisodeFlashcardsBtn');
+            const transcriptBtn = document.getElementById('openTranscriptStudyBtn');
             const series = document.getElementById('loadEpisodeFlashcardsBtn').dataset.series;
             const season = document.getElementById('seriesSeasonSelect').value;
             
             if (episode) {
                 loadBtn.disabled = false;
+                if (transcriptBtn) transcriptBtn.disabled = false;
                 loadBtn.dataset.series = series;
                 loadBtn.dataset.season = season;
                 loadBtn.dataset.episode = episode;
             } else {
                 loadBtn.disabled = true;
+                if (transcriptBtn) transcriptBtn.disabled = true;
             }
         });
 
@@ -2033,5 +2248,137 @@
                 console.error('Error marking word:', error);
             }
         }
+    </script>
+
+    <!-- Word Definition Popup -->
+    <div id="wordDefinitionPopup" class="word-popup" style="display: none;">
+        <div class="word-popup-arrow"></div>
+        <div class="word-popup-content">
+            <div class="word-popup-header">
+                <span id="popupWord" class="popup-word"></span>
+                <span id="popupPronunciation" class="popup-pronunciation"></span>
+            </div>
+            <div class="word-popup-body">
+                <div id="popupDefinition" class="popup-definition">Yükleniyor...</div>
+            </div>
+            <div class="word-popup-footer">
+                <button id="popupMarkKnown" class="btn btn-success btn-small" onclick="markWordFromPopup(true)">Biliyorum</button>
+                <button id="popupMarkUnknown" class="btn btn-danger btn-small" onclick="markWordFromPopup(false)">Bilmiyorum</button>
+            </div>
+            <button id="closePopup" class="popup-close" onclick="closeWordPopup()">OK</button>
+        </div>
+    </div>
+
+    <!-- Transcript Study Modal -->
+    <div id="transcriptStudyModal" class="modal transcript-modal" style="display: none;">
+        <div class="modal-content transcript-study-content">
+            <div class="modal-header transcript-header">
+                <h2 id="transcriptModalTitle">Transkript Calışma Modu</h2>
+                <span class="close-modal" onclick="closeTranscriptStudyModal()">&times;</span>
+            </div>
+            <div class="transcript-controls">
+                <div class="transcript-stats">
+                    <span class="stat-item known-stat">
+                        <span class="stat-icon">✅</span>
+                        Bilinen (Eşsiz): <span id="transcriptKnownCount">0</span>
+                    </span>
+                    <span class="stat-item unknown-stat">
+                        <span class="stat-icon">❌</span>
+                        Bilinmeyen (Eşsiz): <span id="transcriptUnknownCount">0</span>
+                    </span>
+                    <span class="stat-item total-stat">
+                        <span class="stat-icon">📊</span>
+                        Toplam Eşsiz: <span id="transcriptTotalCount">0</span>
+                    </span>
+                </div>
+                <div class="transcript-actions">
+                    <button id="highlightUnknownBtn" class="btn btn-secondary btn-small" onclick="toggleUnknownHighlight()">
+                        🔴 Bilinmeyenleri Vurgula
+                    </button>
+                    <button id="analyzeGrammarBtn" class="btn btn-secondary btn-small" onclick="toggleGrammarAnalysis()">
+                        📚 Gramer Analizi
+                    </button>
+                    <button id="markAllKnownBtn" class="btn btn-success btn-small" onclick="markAllTranscriptWordsAsKnown()" title="Bu bölümdeki tüm kelimeleri bilinen olarak işaretle">
+                        ✅ Tümünü Bilinen Yap
+                    </button>
+                </div>
+            </div>
+            <div class="transcript-info">
+                <p>💡 <strong>Kullanım:</strong> Kelimeye tıklayarak anlamını görebilirsiniz. Gramer analizi için transkriptten bir cümleyi seçin veya aşağıdaki kutuya yazın.</p>
+            </div>
+            <div style="display: flex; flex-direction: row; flex: 1; min-height: 0; overflow: hidden; gap: 20px; padding: 0 25px;">
+                <!-- Transcript Area - Left Side -->
+                <div style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+                    <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                        <span style="font-size: 1.3em; margin-right: 8px;">📝</span>
+                        <h3 style="margin: 0; color: #1e40af; font-size: 1.1em; font-weight: 600;">Transkript</h3>
+                    </div>
+                    <div id="transcriptStudyContent" class="transcript-text" style="user-select: text; flex: 1; overflow-y: auto; min-height: 0; background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 8px; padding: 20px; font-size: 1.05em; line-height: 1.8;">
+                        <!-- Interactive transcript will be loaded here -->
+                    </div>
+                </div>
+                
+                <!-- Grammar Analysis Panel - Right Side -->
+                <div id="grammarAnalysisPanel" style="display: none; flex: 1; padding: 0; background: #f0f9ff; border: 2px solid #3b82f6; border-radius: 8px; flex-direction: column; overflow: hidden; min-height: 0; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; flex-shrink: 0; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; border-radius: 8px 8px 0 0;">
+                        <div style="display: flex; align-items: center;">
+                            <span style="font-size: 1.3em; margin-right: 10px;">📚</span>
+                            <h3 style="margin: 0; color: white; font-size: 1.2em; font-weight: 600;">Gramer Analizi</h3>
+                        </div>
+                        <button onclick="closeGrammarAnalysis()" style="background: rgba(255,255,255,0.2); border: none; font-size: 1.5em; cursor: pointer; color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">&times;</button>
+                    </div>
+                    <div id="grammarAnalysisContent" style="color: #1e293b; padding: 20px; flex: 1; overflow-y: auto; overflow-x: hidden; min-height: 0;">
+                        <div style="background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 15px; border: 1px solid #e2e8f0;">
+                            <p style="margin: 0 0 15px 0; color: #64748b; font-size: 0.95em; line-height: 1.6;">
+                                <strong style="color: #1e40af;">💡 Nasıl Kullanılır:</strong><br>
+                                1. Sol taraftaki transkriptten bir cümleyi seçin (fare ile sürükleyerek)<br>
+                                2. Seçilen cümle otomatik olarak aşağıdaki kutuya gelecek<br>
+                                3. Veya doğrudan kutuya bir cümle yazın<br>
+                                4. "Analiz Et" butonuna tıklayın
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chatbot modal (üst çubuk ve floating buton script ile ekleniyor) -->
+    <div id="chatbotModal" class="chatbot-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:2147483646;align-items:center;justify-content:center;">
+        <div class="chatbot-modal-box" style="background:#fff;border-radius:16px;max-width:800px;width:92%;height:82vh;max-height:780px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 25px 50px rgba(0,0,0,.25);">
+            <div style="padding:18px 22px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;display:flex;justify-content:space-between;align-items:center;">
+                <div><h2 style="margin:0;font-size:1.35em;">🤖 AI İngilizce Öğretmeni</h2><p style="margin:4px 0 0;font-size:.88em;opacity:.92;">Yerel AI ile İngilizce öğrenin</p></div>
+                <button type="button" onclick="typeof closeChatbotModal==='function'&&closeChatbotModal()" style="background:rgba(255,255,255,.25);border:none;color:#fff;font-size:1.6em;cursor:pointer;width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;">×</button>
+            </div>
+            <div id="chatbotModalMessages" style="flex:1;overflow-y:auto;padding:18px;background:#f9fafb;">
+                <div class="chat-message bot-message" style="margin-bottom:12px;padding:14px;background:#e0e7ff;border-radius:12px;max-width:85%;">
+                    <div style="font-weight:600;color:#4338ca;margin-bottom:4px;">🤖 AI Öğretmen</div>
+                    <div style="color:#1e293b;line-height:1.55;">Hello! I'm your English learning assistant. Ask about grammar, vocabulary, or practice. What would you like to learn today?</div>
+                </div>
+            </div>
+            <div id="chatbotModalStatus" style="padding:10px 18px;background:#f3f4f6;border-top:1px solid #e5e7eb;font-size:.85em;color:#6b7280;text-align:center;"><span id="chatbotModalStatusText">Hazırlanıyor…</span></div>
+            <div style="padding:14px 18px;background:#fff;border-top:2px solid #e5e7eb;display:flex;gap:10px;align-items:center;">
+                <input type="text" id="chatbotModalInput" placeholder="Mesajınızı yazın…" style="flex:1;padding:12px 14px;border:2px solid #e5e7eb;border-radius:8px;font-size:1em;" onkeypress="if(event.key==='Enter')typeof sendChatbotModalMessage==='function'&&sendChatbotModalMessage()">
+                <button type="button" id="chatbotModalSendBtn" onclick="typeof sendChatbotModalMessage==='function'&&sendChatbotModalMessage()" class="btn btn-primary" style="padding:12px 22px;border-radius:8px;white-space:nowrap;background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;">📤 Gönder</button>
+                <button type="button" id="chatbotModalClearBtn" onclick="typeof clearChatbotModalHistory==='function'&&clearChatbotModalHistory()" class="btn btn-secondary" style="padding:12px 18px;border-radius:8px;" title="Geçmişi temizle">🗑️</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Öğretmen floating buton – sadece alt kısımdaki baloncuk -->
+    <script>
+    (function(){ try {
+      var z = 10000;
+      // Sadece floating buton oluştur, üst çubuk yok
+      var flt = document.createElement('button');
+      flt.type = 'button';
+      flt.id = 'floatingChatbotBtn';
+      flt.innerHTML = '🤖';
+      flt.title = 'AI İngilizce Öğretmeni';
+      flt.style.cssText = 'position:fixed!important;bottom:28px!important;right:28px!important;width:68px!important;height:68px!important;border-radius:50%!important;background:linear-gradient(135deg,#6366f1,#8b5cf6)!important;border:none!important;color:#fff!important;font-size:32px!important;cursor:pointer!important;z-index:'+z+'!important;display:flex!important;align-items:center!important;justify-content:center!important;visibility:visible!important;opacity:1!important;box-shadow:0 4px 24px rgba(99,102,241,.5)!important;';
+      flt.onclick = function(){ try { if(window.openChatbotModal) window.openChatbotModal(); } catch(e){} };
+      document.body.appendChild(flt);
+    } catch(e) { console.warn('Chatbot UI init:', e); }
+    })();
     </script>
 </body>

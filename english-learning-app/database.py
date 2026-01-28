@@ -1,24 +1,54 @@
 import sqlite3
 from typing import List, Dict, Optional, Any, Set
+from contextlib import contextmanager
 try:
     from deep_translator import GoogleTranslator
 except ImportError:
     GoogleTranslator = None
 
+try:
+    from db_pool import DatabasePool, init_pool, get_pool
+    USE_POOL = True
+except ImportError:
+    USE_POOL = False
+    DatabasePool = None
+
 DATABASE_PATH = 'learning.db'
 
 class Database:
-    def __init__(self, db_path: str = DATABASE_PATH):
+    def __init__(self, db_path: str = DATABASE_PATH, use_pool: bool = True):
         self.db_path = db_path
+        self.use_pool = use_pool and USE_POOL
+        if self.use_pool:
+            self.pool = init_pool(db_path, max_connections=5)
         self.init_db()
     
     def get_connection(self):
-        conn = sqlite3.connect(self.db_path, timeout=30.0)
+        """Get a database connection (thread-safe)"""
+        # Always create new connection for thread safety
+        # check_same_thread=False allows connection to be used across threads
+        conn = sqlite3.connect(self.db_path, timeout=30.0, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         # Enable WAL mode for better concurrency
         conn.execute('PRAGMA journal_mode=WAL')
         conn.execute('PRAGMA busy_timeout=30000')  # 30 second timeout
         return conn
+    
+    def return_connection(self, conn: sqlite3.Connection) -> None:
+        """Close the connection"""
+        try:
+            conn.close()
+        except:
+            pass
+    
+    @contextmanager
+    def connection(self):
+        """Context manager for database connections"""
+        conn = self.get_connection()
+        try:
+            yield conn
+        finally:
+            self.return_connection(conn)
     
     def init_db(self):
         """Initialize database tables"""
@@ -205,7 +235,7 @@ class Database:
         ''')
 
         conn.commit()
-        conn.close()
+        self.return_connection(conn)
     
     def register_user(self, username: str, password_hash: str) -> tuple[bool, Optional[int], str]:
         """Register a new user (or update legacy user)"""
@@ -232,7 +262,7 @@ class Database:
         except sqlite3.IntegrityError:
             return False, None, "Kayıt hatası"
         finally:
-            conn.close()
+            self.return_connection(conn)
 
     def login_with_google(self, email: str, google_id: str, username: str, picture: str) -> tuple[Optional[int], str]:
         """Login or register with Google"""
@@ -274,7 +304,7 @@ class Database:
             conn.commit()
             return cursor.lastrowid, final_username
         finally:
-            conn.close()
+            self.return_connection(conn)
 
     def get_user_by_username(self, username: str) -> Optional[Dict[str, Any]]:
         """Get user details by username"""
@@ -282,7 +312,7 @@ class Database:
         cursor = conn.cursor()
         cursor.execute('SELECT id, username, password_hash FROM users WHERE username = ?', (username,))
         result = cursor.fetchone()
-        conn.close()
+        self.return_connection(conn)
         return dict(result) if result else None
     
     def get_word(self, word_id: int) -> Optional[Dict[str, Any]]:
@@ -291,7 +321,7 @@ class Database:
         cursor = conn.cursor()
         cursor.execute('SELECT * FROM words WHERE id = ?', (word_id,))
         result = cursor.fetchone()
-        conn.close()
+        self.return_connection(conn)
         return dict(result) if result else None
     
     def get_word_by_text(self, word: str) -> Optional[Dict[str, Any]]:
@@ -301,7 +331,7 @@ class Database:
         word = word.lower().strip()
         cursor.execute('SELECT * FROM words WHERE word = ?', (word,))
         result = cursor.fetchone()
-        conn.close()
+        self.return_connection(conn)
         return dict(result) if result else None
 
     def get_or_add_word(self, word: str) -> Optional[int]:
@@ -318,15 +348,131 @@ class Database:
             # Update frequency
             cursor.execute('UPDATE words SET frequency = frequency + 1 WHERE id = ?', (result[0],))
             conn.commit()
-            conn.close()
+            self.return_connection(conn)
             return result[0]
         else:
             # Add new word
             cursor.execute('INSERT INTO words (word) VALUES (?)', (word,))
             conn.commit()
             word_id = cursor.lastrowid
-            conn.close()
+            self.return_connection(conn)
             return word_id
+    
+    def get_words_by_texts(self, words: List[str]) -> Dict[str, Dict[str, Any]]:
+        """Get multiple words by their text in a single query (batch operation)
+        Returns: Dict mapping word text to word data
+        """
+        if not words:
+            return {}
+        
+        # Normalize words
+        normalized_words = [w.lower().strip() for w in words]
+        
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        # Use IN clause for batch query
+        placeholders = ','.join('?' * len(normalized_words))
+        cursor.execute(f'SELECT * FROM words WHERE word IN ({placeholders})', normalized_words)
+        results = cursor.fetchall()
+        
+        # Create mapping
+        word_map = {}
+        for row in results:
+            word_text = row['word']
+            word_map[word_text] = dict(row)
+        
+        self.return_connection(conn)
+        return word_map
+    
+    def get_words_with_user_status_batch(self, word_ids: List[int], user_id: int) -> Dict[int, bool]:
+        """Get user's known status for multiple words in a single query
+        Returns: Dict mapping word_id to known status (True/False)
+        """
+        if not word_ids:
+            return {}
+        
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        placeholders = ','.join('?' * len(word_ids))
+        cursor.execute(
+            f'SELECT word_id, known FROM user_words WHERE user_id = ? AND word_id IN ({placeholders})',
+            [user_id] + word_ids
+        )
+        results = cursor.fetchall()
+        
+        # Create mapping
+        status_map = {}
+        for row in results:
+            word_id = row['word_id']
+            status_map[word_id] = bool(row['known'])
+        
+        self.return_connection(conn)
+        return status_map
+    
+    def get_words_by_texts_with_user_status(self, words: List[str], user_id: int) -> List[Dict[str, Any]]:
+        """Get multiple words by their text with user's known status in batch
+        Returns: List of word dicts with id, word, known status
+        """
+        if not words:
+            return []
+        
+        # Normalize words
+        normalized_words = [w.lower().strip() for w in words]
+        
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        # Get words with user status in a single query
+        placeholders = ','.join('?' * len(normalized_words))
+        cursor.execute(f'''
+            SELECT w.id, w.word, 
+                   CASE WHEN uw.known IS NULL THEN 0 ELSE uw.known END as known
+            FROM words w
+            LEFT JOIN user_words uw ON w.id = uw.word_id AND uw.user_id = ?
+            WHERE w.word IN ({placeholders})
+        ''', [user_id] + normalized_words)
+        
+        results = [dict(row) for row in cursor.fetchall()]
+        self.return_connection(conn)
+        return results
+    
+    def get_video_stats_batch(self, video_ids: List[int], user_id: int) -> Dict[int, Dict[str, int]]:
+        """Get statistics for multiple videos in a single query
+        Returns: Dict mapping video_id to stats dict with 'known' and 'unknown' counts
+        """
+        if not video_ids:
+            return {}
+        
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        placeholders = ','.join('?' * len(video_ids))
+        cursor.execute(f'''
+            SELECT 
+                vw.video_id,
+                COUNT(CASE WHEN uw.known = 1 THEN 1 END) as known,
+                COUNT(CASE WHEN uw.known = 0 OR uw.known IS NULL THEN 1 END) as unknown
+            FROM video_words vw
+            LEFT JOIN user_words uw ON vw.word_id = uw.word_id AND uw.user_id = ?
+            WHERE vw.video_id IN ({placeholders})
+            GROUP BY vw.video_id
+        ''', [user_id] + video_ids)
+        
+        results = cursor.fetchall()
+        
+        # Create mapping
+        stats_map = {}
+        for row in results:
+            video_id = row['video_id']
+            stats_map[video_id] = {
+                'known': row['known'],
+                'unknown': row['unknown']
+            }
+        
+        self.return_connection(conn)
+        return stats_map
     
     def add_user_word(self, user_id: int, word_id: int, known: bool = False):
         """Add word to user's vocabulary"""
@@ -342,7 +488,7 @@ class Database:
         except sqlite3.IntegrityError:
             pass  # Already exists
         finally:
-            conn.close()
+            self.return_connection(conn)
     
     def update_user_word_status(self, user_id: int, word_id: int, known: bool):
         """Update if user knows the word"""
@@ -373,7 +519,7 @@ class Database:
                 ''', (known_int, user_id, word_id))
                 
         conn.commit()
-        conn.close()
+        self.return_connection(conn)
     
     def get_user_words(self, user_id: int, known_only: Optional[bool] = None) -> List[Dict[str, Any]]:
         """Get all words for user"""
@@ -410,7 +556,7 @@ class Database:
             ''', (user_id,))
         
         results = [dict(row) for row in cursor.fetchall()]
-        conn.close()
+        self.return_connection(conn)
         return results
     
     def get_all_words(self) -> List[Dict[str, Any]]:
@@ -419,7 +565,7 @@ class Database:
         cursor = conn.cursor()
         cursor.execute('SELECT id, word, frequency FROM words ORDER BY frequency DESC')
         results = [dict(row) for row in cursor.fetchall()]
-        conn.close()
+        self.return_connection(conn)
         return results
     
     def get_user_stats(self, user_id: int) -> Dict[str, Any]:
@@ -477,7 +623,7 @@ class Database:
                     level_progress = 100
                     level_name = packages[-1]['package_name'] + " (Tamamlandı)"
         
-        conn.close()
+        self.return_connection(conn)
         
         return {
             'total': total,
@@ -518,7 +664,7 @@ class Database:
         except sqlite3.IntegrityError:
             return None
         finally:
-            conn.close()
+            self.return_connection(conn)
             
     def add_video_word(self, video_id: int, word_id: int):
         """Link a word to a video"""
@@ -528,7 +674,7 @@ class Database:
             cursor.execute('INSERT OR IGNORE INTO video_words (video_id, word_id) VALUES (?, ?)', (video_id, word_id))
             conn.commit()
         finally:
-            conn.close()
+            self.return_connection(conn)
     
     def get_videos(self, user_id: Optional[int] = None) -> List[Dict[str, Any]]:
         """Get all processed videos with optional user stats"""
@@ -564,7 +710,7 @@ class Database:
                 ''', (video['id'],))
                 video['level_stats'] = {row['package_name']: row['count'] for row in cursor.fetchall()}
         
-        conn.close()
+        self.return_connection(conn)
         return results
     
     def delete_video(self, video_id: int) -> bool:
@@ -580,7 +726,7 @@ class Database:
             print(f"Error deleting video: {e}")
             return False
         finally:
-            conn.close()
+            self.return_connection(conn)
     
     def delete_videos_by_criteria(self, title_like: Optional[str] = None, max_word_count: Optional[int] = None) -> int:
         """Delete videos matching criteria (useful for cleanup)"""
@@ -620,7 +766,7 @@ class Database:
             print(f"Error cleaning up videos: {e}")
             return 0
         finally:
-            conn.close()
+            self.return_connection(conn)
 
     def get_video_words_details(self, video_id: int, user_id: int) -> List[Dict[str, Any]]:
         """Get detailed words for a video with user status"""
@@ -639,7 +785,7 @@ class Database:
             ORDER BY w.frequency DESC
         ''', (user_id, video_id))
         results = [dict(row) for row in cursor.fetchall()]
-        conn.close()
+        self.return_connection(conn)
         return results
 
     def get_processed_filenames(self) -> Set[str]:
@@ -648,7 +794,7 @@ class Database:
         cursor = conn.cursor()
         cursor.execute('SELECT filename FROM videos')
         results = {row['filename'] for row in cursor.fetchall()}
-        conn.close()
+        self.return_connection(conn)
         return results
 
     # ===== WORD FREQUENCY METHODS =====
@@ -670,7 +816,7 @@ class Database:
         ''')
         
         conn.commit()
-        conn.close()
+        self.return_connection(conn)
 
     def add_word_frequencies(self, video_id: int, word_counts: Dict[str, int]) -> bool:
         """Add word frequencies for a video (word: count pairs)"""
@@ -701,7 +847,7 @@ class Database:
             conn.rollback()
             return False
         finally:
-            conn.close()
+            self.return_connection(conn)
 
     def get_video_word_frequencies(self, video_id: int) -> List[Dict[str, Any]]:
         """Get all word frequencies for a video"""
@@ -716,7 +862,7 @@ class Database:
         ''', (video_id,))
         
         results = [dict(row) for row in cursor.fetchall()]
-        conn.close()
+        self.return_connection(conn)
         return results
 
     def get_all_word_frequencies(self) -> List[Dict[str, Any]]:
@@ -732,7 +878,7 @@ class Database:
         ''')
         
         results = [dict(row) for row in cursor.fetchall()]
-        conn.close()
+        self.return_connection(conn)
         return results
 
     def get_video_word_frequency_summary(self, video_id: int) -> Dict[str, Any]:
@@ -747,7 +893,7 @@ class Database:
         ''', (video_id,))
         
         result = cursor.fetchone()
-        conn.close()
+        self.return_connection(conn)
         
         return {
             'video_id': video_id,
@@ -767,7 +913,7 @@ class Database:
             print(f"Error deleting word frequencies: {e}")
             return False
         finally:
-            conn.close()
+            self.return_connection(conn)
 
     # ===== WATCH PARTY METHODS =====
     
@@ -779,7 +925,7 @@ class Database:
         cursor.execute('DELETE FROM room_members')
         cursor.execute('UPDATE watch_rooms SET is_active = 0')
         conn.commit()
-        conn.close()
+        self.return_connection(conn)
         print("Cleanup complete.")
 
     def create_room(self, room_name: str, creator_id: int, video_url: str = "", video_title: str = "") -> Optional[int]:
@@ -798,7 +944,7 @@ class Database:
                 self.add_member_to_room(room_id, creator_id)
             return room_id
         finally:
-            conn.close()
+            self.return_connection(conn)
     
     def get_active_rooms(self) -> List[Dict[str, Any]]:
         """Get all active watch rooms"""
@@ -815,7 +961,7 @@ class Database:
             ORDER BY r.created_date DESC
         ''')
         results = [dict(row) for row in cursor.fetchall()]
-        conn.close()
+        self.return_connection(conn)
         return results
     
     def get_room(self, room_id: int) -> Optional[Dict[str, Any]]:
@@ -830,7 +976,7 @@ class Database:
             WHERE r.id = ?
         ''', (room_id,))
         result = cursor.fetchone()
-        conn.close()
+        self.return_connection(conn)
         return dict(result) if result else None
 
     def get_room_members(self, room_id: int) -> List[Dict[str, Any]]:
@@ -845,7 +991,7 @@ class Database:
             ORDER BY rm.joined_date ASC
         ''', (room_id,))
         results = [dict(row) for row in cursor.fetchall()]
-        conn.close()
+        self.return_connection(conn)
         return results
     
     def add_member_to_room(self, room_id: int, user_id: int) -> bool:
@@ -862,7 +1008,7 @@ class Database:
         except sqlite3.IntegrityError:
             return False
         finally:
-            conn.close()
+            self.return_connection(conn)
     
     def remove_member_from_room(self, room_id: int, user_id: int) -> bool:
         """Remove user from room"""
@@ -871,7 +1017,7 @@ class Database:
         cursor.execute('DELETE FROM room_members WHERE room_id = ? AND user_id = ?', (room_id, user_id))
         conn.commit()
         affected = cursor.rowcount
-        conn.close()
+        self.return_connection(conn)
         return affected > 0
 
     def get_video_stats_for_room(self, room_id: int, user_id: int) -> Optional[Dict[str, Any]]:
@@ -883,7 +1029,7 @@ class Database:
         cursor.execute('SELECT video_url FROM watch_rooms WHERE id = ?', (room_id,))
         room = cursor.fetchone()
         if not room or not room['video_url']:
-            conn.close()
+            self.return_connection(conn)
             return None
             
         # Find video by URL
@@ -891,7 +1037,7 @@ class Database:
         video = cursor.fetchone()
         
         if not video:
-            conn.close()
+            self.return_connection(conn)
             return None
             
         video_id = video['id']
@@ -908,7 +1054,7 @@ class Database:
         ''', (video_id, user_id))
         known_words = cursor.fetchone()[0]
         
-        conn.close()
+        self.return_connection(conn)
         
         return {
             'total': total_words,
@@ -925,14 +1071,14 @@ class Database:
         cursor.execute('SELECT video_url FROM watch_rooms WHERE id = ?', (room_id,))
         room = cursor.fetchone()
         if not room or not room['video_url']:
-            conn.close()
+            self.return_connection(conn)
             return []
             
         cursor.execute('SELECT id FROM videos WHERE video_url = ?', (room['video_url'],))
         video = cursor.fetchone()
         
         if not video:
-            conn.close()
+            self.return_connection(conn)
             return []
             
         query = '''
@@ -954,7 +1100,7 @@ class Database:
         
         cursor.execute(query, (user_id, video['id']))
         results = [dict(row) for row in cursor.fetchall()]
-        conn.close()
+        self.return_connection(conn)
         return results
     
     def add_chat_message(self, room_id: int, user_id: int, message: str) -> Optional[int]:
@@ -969,7 +1115,7 @@ class Database:
             conn.commit()
             return cursor.lastrowid
         finally:
-            conn.close()
+            self.return_connection(conn)
     
     def get_room_messages(self, room_id: int, limit: int = 50) -> List[Dict[str, Any]]:
         """Get chat messages for a room"""
@@ -984,7 +1130,7 @@ class Database:
             LIMIT ?
         ''', (room_id, limit))
         results = [dict(row) for row in cursor.fetchall()]
-        conn.close()
+        self.return_connection(conn)
         return list(reversed(results))  # Return in ascending order
     
     def set_screen_sharing(self, room_id: int, user_id: int, is_sharing: bool) -> bool:
@@ -997,7 +1143,7 @@ class Database:
         ''', (is_sharing, room_id, user_id))
         conn.commit()
         affected = cursor.rowcount
-        conn.close()
+        self.return_connection(conn)
         return affected > 0
 
     def get_word_definition(self, word: str) -> tuple[Optional[str], Optional[str]]:
@@ -1021,7 +1167,7 @@ class Database:
         cursor.execute('UPDATE words SET definition = ?, pronunciation = ? WHERE id = ?', 
                       (definition, pronunciation, word_id))
         conn.commit()
-        conn.close()
+        self.return_connection(conn)
 
     def get_words_without_definition(self, limit: int = 100, package_id: Optional[int] = None) -> List[Dict[str, Any]]:
         """Get words that don't have definitions yet"""
@@ -1050,7 +1196,7 @@ class Database:
             ''', (limit,))
         
         results = [dict(row) for row in cursor.fetchall()]
-        conn.close()
+        self.return_connection(conn)
         return results
 
     def bulk_update_definitions(self, definitions: List[Dict[str, Any]]) -> int:
@@ -1077,7 +1223,7 @@ class Database:
             print(f"Error in bulk update: {e}")
             conn.rollback()
         finally:
-            conn.close()
+            self.return_connection(conn)
         
         return updated
 
@@ -1102,7 +1248,7 @@ class Database:
         # Words without definitions
         words_without_def = total_words - words_with_def
         
-        conn.close()
+        self.return_connection(conn)
         
         return {
             'total_words': total_words,
@@ -1118,7 +1264,7 @@ class Database:
         cursor.execute('UPDATE watch_rooms SET is_active = 0 WHERE id = ?', (room_id,))
         conn.commit()
         affected = cursor.rowcount
-        conn.close()
+        self.return_connection(conn)
         return affected > 0
     
     def update_room_video(self, room_id: int, video_url: str, video_title: str) -> bool:
@@ -1131,7 +1277,7 @@ class Database:
         ''', (video_url, video_title, room_id))
         conn.commit()
         affected = cursor.rowcount
-        conn.close()
+        self.return_connection(conn)
         return affected > 0
 
     # ===== LEARNING PATHWAY METHODS =====
@@ -1168,7 +1314,7 @@ class Database:
         ''')
         
         conn.commit()
-        conn.close()
+        self.return_connection(conn)
 
     def get_learning_packages(self) -> List[Dict[str, Any]]:
         """Get all learning packages"""
@@ -1180,7 +1326,7 @@ class Database:
             ORDER BY package_number
         ''')
         results = [dict(row) for row in cursor.fetchall()]
-        conn.close()
+        self.return_connection(conn)
         return results
 
     def has_learning_packages(self) -> bool:
@@ -1194,7 +1340,7 @@ class Database:
         except sqlite3.OperationalError:
             return False
         finally:
-            conn.close()
+            self.return_connection(conn)
 
     def generate_learning_packages(self, package_size: int = 500) -> int:
         """Generate learning packages from words table based on frequency"""
@@ -1267,7 +1413,7 @@ class Database:
             conn.rollback()
             raise e
         finally:
-            conn.close()
+            self.return_connection(conn)
 
     def get_package_words(self, package_id: int, user_id: Optional[int] = None) -> List[Dict[str, Any]]:
         """Get words for a specific package"""
@@ -1296,7 +1442,7 @@ class Database:
             ''', (package_id,))
         
         results = [dict(row) for row in cursor.fetchall()]
-        conn.close()
+        self.return_connection(conn)
         return results
 
     def get_package_progress(self, package_id: int, user_id: int) -> Dict[str, Any]:
@@ -1317,7 +1463,7 @@ class Database:
         ''', (user_id, package_id))
         known_words = cursor.fetchone()[0] or 0
         
-        conn.close()
+        self.return_connection(conn)
         
         return {
             'total': total_words,
@@ -1356,7 +1502,7 @@ class Database:
             pkg['unknown_words'] = pkg['word_count'] - known
             pkg['progress_percentage'] = round((known / pkg['word_count'] * 100) if pkg['word_count'] > 0 else 0, 1)
         
-        conn.close()
+        self.return_connection(conn)
         return packages
 
     # ===== FLASHCARD SYSTEM METHODS =====
@@ -1413,7 +1559,7 @@ class Database:
         ''')
         
         conn.commit()
-        conn.close()
+        self.return_connection(conn)
 
     def create_flashcard_session(self, user_id: int, session_type: str, target_id: Optional[int] = None) -> Optional[int]:
         """Start a new flashcard session and return session_id"""
@@ -1486,7 +1632,7 @@ class Database:
                 words = cursor.fetchall()
             
             if not words:
-                conn.close()
+                self.return_connection(conn)
                 return None
             
             # Create session
@@ -1506,7 +1652,7 @@ class Database:
             conn.commit()
             return session_id
         finally:
-            conn.close()
+            self.return_connection(conn)
 
     def get_flashcard_session_words(self, session_id: int, user_id: int) -> List[Dict[str, Any]]:
         """Get all words in a flashcard session that haven't been answered correctly"""
@@ -1523,7 +1669,7 @@ class Database:
         ''', (session_id,))
         
         words = [dict(row) for row in cursor.fetchall()]
-        conn.close()
+        self.return_connection(conn)
         return words
 
     def get_flashcard_current_word(self, session_id: int) -> Optional[Dict[str, Any]]:
@@ -1543,7 +1689,7 @@ class Database:
         ''', (session_id,))
         
         result = cursor.fetchone()
-        conn.close()
+        self.return_connection(conn)
         
         return dict(result) if result else None
 
@@ -1598,7 +1744,7 @@ class Database:
         next_word = cursor.fetchone()
         
         conn.commit()
-        conn.close()
+        self.return_connection(conn)
         
         # Calculate percentage
         total = session['total_cards'] if session else 1
@@ -1629,7 +1775,7 @@ class Database:
         session = cursor.fetchone()
         
         if not session:
-            conn.close()
+            self.return_connection(conn)
             return {}
         
         cursor.execute('''
@@ -1640,7 +1786,7 @@ class Database:
         ''', (session_id,))
         status_counts = {row['status']: row['count'] for row in cursor.fetchall()}
         
-        conn.close()
+        self.return_connection(conn)
         
         return {
             'total_cards': session['total_cards'],
@@ -1666,7 +1812,7 @@ class Database:
         
         conn.commit()
         affected = cursor.rowcount
-        conn.close()
+        self.return_connection(conn)
         return affected > 0
 
     def get_problem_words(self, user_id: int, limit: int = 20) -> List[Dict[str, Any]]:
@@ -1685,7 +1831,7 @@ class Database:
         ''', (user_id, limit))
         
         results = [dict(row) for row in cursor.fetchall()]
-        conn.close()
+        self.return_connection(conn)
         return results
 
     # ===== SERIES SPECIFIC METHODS (Friends & Big Bang Theory) =====
@@ -1723,7 +1869,7 @@ class Database:
         
         cursor.execute(query, params)
         results = [dict(row) for row in cursor.fetchall()]
-        conn.close()
+        self.return_connection(conn)
         return results
 
     def get_series_stats(self, series: str, user_id: Optional[int] = None) -> Dict[str, Any]:
@@ -1761,7 +1907,7 @@ class Database:
         else:
             known_words = 0
         
-        conn.close()
+        self.return_connection(conn)
         
         return {
             'series': series,
@@ -1784,7 +1930,7 @@ class Database:
         video = cursor.fetchone()
         
         if not video:
-            conn.close()
+            self.return_connection(conn)
             return {'success': False, 'error': 'Video not found'}
         
         # Get words for this video
@@ -1808,7 +1954,7 @@ class Database:
             ''', (video_id,))
         
         words = [dict(row) for row in cursor.fetchall()]
-        conn.close()
+        self.return_connection(conn)
         
         # Filter unknown words for flashcards
         flashcards = []
@@ -1851,7 +1997,7 @@ class Database:
             print(f"Error marking word: {e}")
             return False
         finally:
-            conn.close()
+            self.return_connection(conn)
 
     # ===== CUSTOM SERIES METHODS =====
 
@@ -1874,7 +2020,7 @@ class Database:
             print(f"Error adding custom series: {e}")
             return None
         finally:
-            conn.close()
+            self.return_connection(conn)
 
     def get_custom_series(self) -> List[Dict[str, Any]]:
         """Get all custom series"""
@@ -1889,7 +2035,7 @@ class Database:
         ''')
         
         results = [dict(row) for row in cursor.fetchall()]
-        conn.close()
+        self.return_connection(conn)
         return results
 
     def get_custom_series_by_id(self, series_id: str) -> Optional[Dict[str, Any]]:
@@ -1905,7 +2051,7 @@ class Database:
         ''', (series_id,))
         
         row = cursor.fetchone()
-        conn.close()
+        self.return_connection(conn)
         
         return dict(row) if row else None
 
@@ -1924,7 +2070,7 @@ class Database:
             print(f"Error updating custom series: {e}")
             return False
         finally:
-            conn.close()
+            self.return_connection(conn)
 
     def delete_custom_series(self, series_id: str) -> bool:
         """Delete a custom series"""
@@ -1939,4 +2085,4 @@ class Database:
             print(f"Error deleting custom series: {e}")
             return False
         finally:
-            conn.close()
+            self.return_connection(conn)
